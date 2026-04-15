@@ -1,0 +1,188 @@
+Ticket_ID,Timestamp,Source,Category,Severity,Alert_Message,Raw_Logs,Status
+INC-3023,2026-04-15 05:02,HP iLO / IPMI,Hardware,Medium,Memory ECC Error on Server-DB-01 — 634 Errors/Hour,"Apr 16 08:53:33 Server-DB-01 kernel[1]: Hardware error: Correctable ECC memory error on DIMM slot B2
+Apr 02 06:57:14 Server-DB-01 kernel[1]: Error count: 634 in last hour — threshold 100/hour exceeded
+Apr 11 18:40:17 Server-DB-01 mcelog[33]: Machine check exception: Memory bank 1, rank 0 — replace DIMM recommended
+Apr 26 20:11:29 Server-DB-01 iLO[10]: IML entry: Corrected Memory Error rate exceeded",Pending
+INC-3009,2026-04-15 05:07,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — emircom-logs-archive,"Apr 23 05:02:04 k8s-event: Pod emircom-logs-archive-5932x in namespace production is in CrashLoopBackOff
+Apr 17 09:41:09 k8s-event: Exit code 137 (OOMKilled) — memory limit 1024Mi exceeded
+Apr 07 07:55:38 k8s-event: Restart count: 30 — back-off 5m0s
+Apr 23 17:11:11 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3007,2026-04-15 05:07,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — emircom-logs-archive,"Apr 04 23:44:10 k8s-event: Pod emircom-logs-archive-9656x in namespace production is in CrashLoopBackOff
+Apr 02 07:08:28 k8s-event: Exit code 137 (OOMKilled) — memory limit 1024Mi exceeded
+Apr 03 13:16:48 k8s-event: Restart count: 23 — back-off 5m0s
+Apr 16 21:54:37 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3043,2026-04-15 05:09,CloudWatch / Azure Monitor,Cloud,Medium,CDN Cache Hit Rate Dropped — 14%,"Apr 26 12:33:14 Cloudflare: Cache hit rate dropped from 85% to 14% in last 30 minutes
+Apr 10 03:33:42 Cloudflare: Origin server receiving 10x normal traffic
+Apr 08 08:45:18 Cloudflare: Edge latency: 2631ms (baseline: 120ms)
+Apr 19 21:41:48 Cloudflare: Cache-Control headers missing on 73% of responses — check app config",Pending
+INC-3036,2026-04-15 05:38,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — crm-backend,"Apr 19 12:51:13 k8s-event: Pod crm-backend-4573x in namespace production is in CrashLoopBackOff
+Apr 01 22:01:19 k8s-event: Exit code 137 (OOMKilled) — memory limit 512Mi exceeded
+Apr 10 04:21:51 k8s-event: Restart count: 25 — back-off 5m0s
+Apr 16 09:00:36 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3025,2026-04-15 05:41,CloudWatch / Azure Monitor,Cloud,High,EC2 Instance High CPU — emircom-logs-archive at 95%,"Apr 03 08:21:08 CloudWatch: EC2 instance i-06d5de (emircom-logs-archive) CPU utilization 95% for 15 minutes
+Apr 16 22:19:00 CloudWatch: Auto-scaling triggered — 4 new instances launching in us-east-1a
+Apr 22 00:31:44 CloudWatch: ELB TargetGroup healthy hosts: 1/5 — unhealthy instances being replaced
+Apr 08 15:14:33 CloudWatch: P99 latency: 4813ms — SLA breach risk",Pending
+INC-3045,2026-04-15 06:16,CloudWatch / Azure Monitor,Cloud,Critical,Database Connection Pool Exhausted — crm-backend,"Apr 13 04:52:18 Azure Monitor: SQL Database crm-backend connection pool at 100% capacity (493/493)
+Apr 18 13:18:15 Azure Monitor: New connections queuing — wait time: 6510ms
+Apr 20 10:09:21 Azure Monitor: Query timeout rate: 35% — application errors increasing
+Apr 12 12:14:03 Azure Monitor: DTU consumption: 100% — scale up or optimize connection pooling",Pending
+INC-3008,2026-04-15 06:19,SolarWinds NPM,Network,Critical,OSPF Neighbor Down on PE-RTR-MED-01,"Apr 27 12:13:04 PE-RTR-MED-01 OSPF[100]: %OSPF-5-ADJCHG: Process 1, Nbr 172.16.10.1 on Bundle-Ether20 from FULL to DOWN, Neighbor Down: Dead timer expired
+Apr 28 03:58:35 PE-RTR-MED-01 OSPF[100]: %OSPF-4-ERRRCV: Received invalid packet: mismatched area ID from backbone area from 172.16.10.1, Bundle-Ether20
+Apr 04 05:48:18 PE-RTR-MED-01 OSPF[100]: Interface Bundle-Ether20 going down",Pending
+INC-3011,2026-04-15 06:20,HP iLO / IPMI,Hardware,High,NIC Failure on Storage-SAN-01 — eth1,"Apr 01 01:51:24 Storage-SAN-01 kernel[1]: Network interface eth0 link failure detected
+Apr 06 07:22:12 Storage-SAN-01 kernel[1]: ethtool: Link is Down — auto-negotiation failed
+Apr 04 23:35:20 Storage-SAN-01 bonding[55]: Failover to eth0 complete — bond0 operating on single link
+Apr 22 20:24:40 Storage-SAN-01 iLO[10]: NIC teaming degraded — investigate NIC or cable on failed port",Pending
+INC-3035,2026-04-15 06:33,HP iLO / IPMI,Hardware,High,NIC Failure on Server-DB-01 — eth0,"Apr 06 05:18:19 Server-DB-01 kernel[1]: Network interface eth3 link failure detected
+Apr 09 20:35:34 Server-DB-01 kernel[1]: ethtool: Link is Down — auto-negotiation failed
+Apr 18 11:08:20 Server-DB-01 bonding[55]: Failover to eth0 complete — bond0 operating on single link
+Apr 06 12:57:30 Server-DB-01 iLO[10]: NIC teaming degraded — investigate NIC or cable on failed port",Pending
+INC-3038,2026-04-15 06:36,SolarWinds NPM,Network,High,WAN Link Saturation on Dist-SW-MED-02 — GigabitEthernet1/0 at 96%,"Apr 20 21:12:23 Dist-SW-MED-02 ifmgr[145]: Interface GigabitEthernet1/0: output rate 96000000 bits/sec, input rate 57000000 bits/sec, 96% bandwidth utilization
+Apr 17 11:23:36 Dist-SW-MED-02 QOS[200]: CBWFQ: Queue drops on class VOICE: 1250 packets
+Apr 20 00:56:08 Dist-SW-MED-02 QOS[200]: Traffic-shape avg rate exceeded on GigabitEthernet1/0: CIR=100Mbps, current=96Mbps",Pending
+INC-3017,2026-04-15 06:45,SolarWinds NPM,Network,Medium,DNS Resolution Failure on Core-RTR-JED-01,"Apr 17 12:08:04 Core-RTR-JED-01 named[512]: DNS query timeout for domain internal.emircom.net from 10.0.0.5, retries exhausted
+Apr 05 20:52:55 Core-RTR-JED-01 named[512]: SERVFAIL response from upstream 8.8.8.8 — recursion failed
+Apr 17 22:32:07 Core-RTR-JED-01 named[512]: Zone transfer for emircom.net failed: connection refused from primary 10.0.1.1",Pending
+INC-3024,2026-04-15 06:49,Dynatrace APM,Application,High,Database Replication Lag — MySQL-REPLICA-02: 89 minutes behind,"Apr 05 04:00:26 mysql[3306]: Slave_IO_Running: Yes, Slave_SQL_Running: Yes
+Apr 17 11:55:08 mysql[3306]: Seconds_Behind_Master: 1843
+Apr 19 20:44:45 mysql[3306]: Large transaction detected: binlog pos 540289 — DDL operation running
+Apr 15 22:32:42 mysql[3306]: Replication lag increasing — read queries on replica returning stale data",Pending
+INC-3027,2026-04-15 06:58,FortiSIEM,Security,High,ACL Deny Storm on BNG-01-RUH — 19891 Blocks/min,"Apr 26 14:07:02 BNG-01-RUH ACL[88]: %SEC-6-IPACCESSLOGP: list ACL_INBOUND denied tcp 10.10.1.45(1024) -> 192.168.1.1(445), 14985 packets in 60 seconds
+Apr 11 02:13:53 BNG-01-RUH ACL[88]: %SEC-6-IPACCESSLOGP: list ACL_INBOUND denied udp 10.10.1.45(53) -> 8.8.8.8(53)
+Apr 17 22:43:36 BNG-01-RUH ACL[88]: Deny storm threshold exceeded — check for worm/scanner",Pending
+INC-3049,2026-04-15 06:59,CloudWatch / Azure Monitor,Cloud,Critical,Database Connection Pool Exhausted — prod-sqldb-02,"Apr 21 04:43:30 Azure Monitor: SQL Database prod-sqldb-02 connection pool at 100% capacity (470/470)
+Apr 07 03:33:02 Azure Monitor: New connections queuing — wait time: 9833ms
+Apr 14 02:26:03 Azure Monitor: Query timeout rate: 50% — application errors increasing
+Apr 02 23:13:55 Azure Monitor: DTU consumption: 100% — scale up or optimize connection pooling",Pending
+INC-3042,2026-04-15 07:08,FortiSIEM,Security,High,ACL Deny Storm on Core-SW-RUH-01 — 16181 Blocks/min,"Apr 18 20:13:04 Core-SW-RUH-01 ACL[88]: %SEC-6-IPACCESSLOGP: list ACL_INBOUND denied tcp 10.10.1.45(1024) -> 192.168.1.1(445), 18092 packets in 60 seconds
+Apr 02 11:47:18 Core-SW-RUH-01 ACL[88]: %SEC-6-IPACCESSLOGP: list ACL_INBOUND denied udp 10.10.1.45(53) -> 8.8.8.8(53)
+Apr 06 09:03:54 Core-SW-RUH-01 ACL[88]: Deny storm threshold exceeded — check for worm/scanner",Pending
+INC-3018,2026-04-15 07:18,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — crm-backend,"Apr 26 20:17:27 k8s-event: Pod crm-backend-7905x in namespace production is in CrashLoopBackOff
+Apr 16 06:23:32 k8s-event: Exit code 137 (OOMKilled) — memory limit 2048Mi exceeded
+Apr 12 19:43:15 k8s-event: Restart count: 27 — back-off 5m0s
+Apr 02 18:14:53 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3010,2026-04-15 07:19,HP iLO / IPMI,Hardware,High,PSU Failure on Server-ESX-03 — PSU-2,"Apr 19 16:20:06 Server-ESX-03 iLO[10]: Power supply 2 failure detected
+Apr 04 13:34:58 Server-ESX-03 iLO[10]: Input voltage: 0V (expected 220V AC) — PSU offline
+Apr 04 15:46:20 Server-ESX-03 iLO[10]: Redundant PSU active — single point of failure now
+Apr 08 18:26:10 Server-ESX-03 IPMI[20]: PS Status: FAILURE — open service ticket for PSU replacement",Pending
+INC-3034,2026-04-15 07:31,CloudWatch / Azure Monitor,Cloud,Medium,CDN Cache Hit Rate Dropped — 15%,"Apr 05 15:59:27 Cloudflare: Cache hit rate dropped from 85% to 9% in last 30 minutes
+Apr 15 11:23:41 Cloudflare: Origin server receiving 15x normal traffic
+Apr 20 22:15:22 Cloudflare: Edge latency: 4687ms (baseline: 120ms)
+Apr 12 06:54:21 Cloudflare: Cache-Control headers missing on 45% of responses — check app config",Pending
+INC-3022,2026-04-15 07:33,Dynatrace APM,Application,High,Email Gateway Backlog — MySQL-REPLICA-02: 76171 Messages,"Apr 03 07:12:18 postfix[512]: deferred queue: 76171 messages pending delivery
+Apr 22 02:20:22 postfix[512]: MX record resolution failed for emircom.net — DNS propagation issue
+Apr 11 19:31:00 postfix[512]: Bounce rate: 37% — hard bounces increasing
+Apr 06 08:49:43 postfix[512]: SMTP relay 10.0.1.21 refusing connections: 421 Too many concurrent connections",Pending
+INC-3028,2026-04-15 07:40,CloudWatch / Azure Monitor,Cloud,Medium,CDN Cache Hit Rate Dropped — 17%,"Apr 07 17:05:08 Cloudflare: Cache hit rate dropped from 85% to 8% in last 30 minutes
+Apr 18 22:39:37 Cloudflare: Origin server receiving 13x normal traffic
+Apr 25 05:59:14 Cloudflare: Edge latency: 3322ms (baseline: 120ms)
+Apr 06 12:12:52 Cloudflare: Cache-Control headers missing on 64% of responses — check app config",Pending
+INC-3041,2026-04-15 07:57,Dynatrace APM,Application,Critical,API Gateway High Error Rate — SAP-PROD-01 45% 502s,"Apr 09 06:08:27 nginx[112]: upstream server returned 502 Bad Gateway — error rate 45%
+Apr 22 23:30:44 nginx[112]: Upstream pool: 2/5 servers unhealthy, health check failing
+Apr 25 20:21:44 nginx[112]: Active connections: 3750 — worker processes at capacity
+Apr 20 07:28:10 nginx[112]: P99 latency: 10384ms — upstream timeout 30s exceeded",Pending
+INC-3050,2026-04-15 08:05,Dynatrace APM,Application,Critical,IMS VoIP Call Drop Rate High — MSC-RUH-01,"Apr 17 15:31:52 eNB-JED-Tower-112 ims-cscf[88]: Call drop rate: 17% (threshold: 5%)
+Apr 07 22:07:35 SGW-RUH-01 ims-cscf[88]: SIP 503 Service Unavailable from P-CSCF
+Apr 01 16:09:55 gNB-JED-5G-004 ims-cscf[88]: Media gateway overloaded — RTP packet loss 8%
+Apr 12 08:28:05 eNB-JED-Tower-112 ims-cscf[88]: Subscribers affected: 652",Pending
+INC-3033,2026-04-15 08:06,SolarWinds NPM,Network,Critical,OSPF Neighbor Down on PE-RTR-MED-01,"Apr 15 17:05:52 PE-RTR-MED-01 OSPF[100]: %OSPF-5-ADJCHG: Process 1, Nbr 10.1.1.6 on Bundle-Ether20 from FULL to DOWN, Neighbor Down: Dead timer expired
+Apr 08 18:36:35 PE-RTR-MED-01 OSPF[100]: %OSPF-4-ERRRCV: Received invalid packet: mismatched area ID from backbone area from 10.1.1.6, Bundle-Ether20
+Apr 22 13:37:25 PE-RTR-MED-01 OSPF[100]: Interface Bundle-Ether20 going down",Pending
+INC-3012,2026-04-15 08:07,SolarWinds NPM,Network,Critical,Cell Tower eNB Down — eNB-JED-Tower-112,"Apr 21 23:35:49 IMS-CSCF-01 enb-mgr[77]: S1-AP link to MME lost — eNB out of service
+Apr 20 10:47:45 eNB-MED-Tower-033 enb-mgr[77]: X2 interface to neighbor eNB timeout — handover failure risk
+Apr 09 12:21:03 eNB-JED-Tower-112 enb-mgr[77]: Alarm: TX power anomaly detected — check antenna feed cable",Pending
+INC-3014,2026-04-15 08:20,HP iLO / IPMI,Hardware,High,NIC Failure on Server-ESX-02 — eth3,"Apr 23 08:25:14 Server-ESX-02 kernel[1]: Network interface eth2 link failure detected
+Apr 06 07:44:25 Server-ESX-02 kernel[1]: ethtool: Link is Down — auto-negotiation failed
+Apr 12 20:27:08 Server-ESX-02 bonding[55]: Failover to eth0 complete — bond0 operating on single link
+Apr 26 19:03:16 Server-ESX-02 iLO[10]: NIC teaming degraded — investigate NIC or cable on failed port",Pending
+INC-3026,2026-04-15 08:39,SolarWinds NPM,Network,Critical,BGP Session Down on BRAS-RUH-01 — Peer 192.168.100.1,"Apr 17 18:51:28 BRAS-RUH-01 BGP[1234]: %BGP-5-ADJCHANGE: neighbor 192.168.100.1 Down BGP Notification sent, error code Cease (subcode peer de-configured)
+Apr 20 12:10:02 BRAS-RUH-01 BGP[1234]: %BGP-3-NOTIFICATION: sent to neighbor 192.168.100.1 6/3 (cease/peer unconfigured) 0 bytes
+Apr 05 04:28:51 BRAS-RUH-01 BGP[1234]: %BGP-5-ADJCHANGE: neighbor 192.168.100.1 Down Interface flap",Pending
+INC-3016,2026-04-15 08:39,HP iLO / IPMI,Hardware,Critical,UPS Battery Low on UPS-DataCenter-RUH-A,"Apr 17 01:56:45 ups-mgr[77]: UPS battery capacity: 13% — critical threshold 20% breached
+Apr 10 19:58:43 ups-mgr[77]: Estimated runtime on battery: 3 minutes
+Apr 09 21:11:23 ups-mgr[77]: Mains power input: FAILED — running on battery since 20 minutes
+Apr 16 02:41:47 ups-mgr[77]: ALERT: Initiate graceful shutdown of non-critical systems",Pending
+INC-3030,2026-04-15 08:45,CloudWatch / Azure Monitor,Cloud,High,EC2 Instance High CPU — prod-sqldb-01 at 95%,"Apr 01 00:23:20 CloudWatch: EC2 instance i-0c5bc5 (prod-sqldb-01) CPU utilization 95% for 15 minutes
+Apr 20 09:21:06 CloudWatch: Auto-scaling triggered — 3 new instances launching in us-east-1a
+Apr 22 20:17:16 CloudWatch: ELB TargetGroup healthy hosts: 1/5 — unhealthy instances being replaced
+Apr 24 04:55:13 CloudWatch: P99 latency: 5855ms — SLA breach risk",Pending
+INC-3006,2026-04-15 08:51,SolarWinds NPM,Network,High,High CPU on BNG-02-JED — 94% for 10 minutes,"Apr 24 17:29:21 BNG-02-JED kernel: CPU utilization for five seconds: 94%/12%; one minute: 91%; five minutes: 89%
+Apr 05 05:30:50 BNG-02-JED kernel: Process BGP consuming 34% CPU cycles
+Apr 16 06:33:14 BNG-02-JED kernel: IP Input process: 28% — possible route flap or ACL storm",Pending
+INC-3040,2026-04-15 08:58,CloudWatch / Azure Monitor,Cloud,Critical,Azure VM Unreachable — staging-api-01,"Apr 21 08:51:43 Azure Monitor: VM staging-api-01 heartbeat lost — last heartbeat 19 minutes ago
+Apr 16 12:51:01 Azure Monitor: Health probe failing on LoadBalancer backend pool
+Apr 12 18:30:16 Azure Monitor: NSG flow logs: inbound traffic blocked — check NSG rules
+Apr 21 11:09:55 Azure Monitor: Boot diagnostics: OS not responding — kernel panic suspected",Pending
+INC-3001,2026-04-15 09:00,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — crm-backend,"Apr 12 02:43:16 k8s-event: Pod crm-backend-5280x in namespace production is in CrashLoopBackOff
+Apr 07 15:01:11 k8s-event: Exit code 137 (OOMKilled) — memory limit 512Mi exceeded
+Apr 25 18:05:59 k8s-event: Restart count: 29 — back-off 5m0s
+Apr 22 03:25:08 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3047,2026-04-15 09:00,HP iLO / IPMI,Hardware,Critical,UPS Battery Low on UPS-DataCenter-JED-B,"Apr 13 11:08:09 ups-mgr[77]: UPS battery capacity: 19% — critical threshold 20% breached
+Apr 05 19:20:31 ups-mgr[77]: Estimated runtime on battery: 7 minutes
+Apr 01 12:02:23 ups-mgr[77]: Mains power input: FAILED — running on battery since 8 minutes
+Apr 05 21:10:45 ups-mgr[77]: ALERT: Initiate graceful shutdown of non-critical systems",Pending
+INC-3046,2026-04-15 09:22,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Pod CrashLoopBackOff — prod-billing-svc,"Apr 14 02:23:09 k8s-event: Pod prod-billing-svc-1447x in namespace production is in CrashLoopBackOff
+Apr 27 18:52:26 k8s-event: Exit code 137 (OOMKilled) — memory limit 1024Mi exceeded
+Apr 24 20:20:00 k8s-event: Restart count: 10 — back-off 5m0s
+Apr 08 20:18:51 k8s-event: Node pressure: MemoryPressure=True on node worker-02",Pending
+INC-3029,2026-04-15 10:06,Dynatrace APM,Application,Critical,ERP Slow Response — SAP-PROD-01 at 22s,"Apr 14 13:32:12 dynatrace-apm: SAP ERP average response time 22526ms (baseline: 800ms)
+Apr 10 14:25:24 dynatrace-apm: Root cause: database query timeout on table VBAK — 6M rows full scan
+Apr 26 18:54:29 dynatrace-apm: 226 active users affected
+Apr 24 09:22:11 dynatrace-apm: Missing index on VBAK.ERDAT — DB team notified",Pending
+INC-3039,2026-04-15 10:07,CloudWatch / Azure Monitor,Cloud,Medium,CDN Cache Hit Rate Dropped — 9%,"Apr 12 09:27:36 Cloudflare: Cache hit rate dropped from 85% to 16% in last 30 minutes
+Apr 27 13:35:16 Cloudflare: Origin server receiving 11x normal traffic
+Apr 15 01:11:43 Cloudflare: Edge latency: 4729ms (baseline: 120ms)
+Apr 01 08:47:57 Cloudflare: Cache-Control headers missing on 69% of responses — check app config",Pending
+INC-3031,2026-04-15 10:12,SolarWinds NPM,Network,Critical,OSPF Neighbor Down on Core-RTR-RUH-01,"Apr 12 06:46:22 Core-RTR-RUH-01 OSPF[100]: %OSPF-5-ADJCHG: Process 1, Nbr 10.1.1.2 on Bundle-Ether10 from FULL to DOWN, Neighbor Down: Dead timer expired
+Apr 28 19:54:29 Core-RTR-RUH-01 OSPF[100]: %OSPF-4-ERRRCV: Received invalid packet: mismatched area ID from backbone area from 10.1.1.2, Bundle-Ether10
+Apr 05 01:59:12 Core-RTR-RUH-01 OSPF[100]: Interface Bundle-Ether10 going down",Pending
+INC-3048,2026-04-15 10:15,HP iLO / IPMI,Hardware,High,NIC Failure on Server-ESX-02 — eth0,"Apr 22 15:05:52 Server-ESX-02 kernel[1]: Network interface eth1 link failure detected
+Apr 04 15:22:02 Server-ESX-02 kernel[1]: ethtool: Link is Down — auto-negotiation failed
+Apr 08 11:20:20 Server-ESX-02 bonding[55]: Failover to eth0 complete — bond0 operating on single link
+Apr 28 14:04:19 Server-ESX-02 iLO[10]: NIC teaming degraded — investigate NIC or cable on failed port",Pending
+INC-3013,2026-04-15 10:57,Dynatrace APM,Application,High,Email Gateway Backlog — CRM-PROD-01: 65460 Messages,"Apr 11 15:07:07 postfix[512]: deferred queue: 65460 messages pending delivery
+Apr 12 16:56:03 postfix[512]: MX record resolution failed for emircom.net — DNS propagation issue
+Apr 14 18:58:40 postfix[512]: Bounce rate: 45% — hard bounces increasing
+Apr 12 04:06:32 postfix[512]: SMTP relay 10.0.1.20 refusing connections: 421 Too many concurrent connections",Pending
+INC-3002,2026-04-15 11:06,Dynatrace APM,Application,High,Memory Leak Detected — MongoDB-PROD-01,"Apr 16 13:22:00 jvm[java]: Heap usage: 92% (8GB/8GB)
+Apr 24 14:59:27 jvm[java]: GC overhead limit exceeded — full GC running every 3 seconds
+Apr 16 23:12:18 jvm[java]: OldGen space full — OutOfMemoryError imminent
+Apr 02 07:38:08 dynatrace-apm: Memory leak in MongoDB-PROD-01 v4.8.4 — object retention in cache layer",Pending
+INC-3020,2026-04-15 11:20,HP iLO / IPMI,Hardware,High,High Temperature on PDU-Rack-07-RUH — 86°C,"Apr 23 17:01:40 PDU-Rack-07-RUH iLO[10]: Inlet temperature 86°C — threshold 75°C exceeded
+Apr 08 21:30:08 PDU-Rack-07-RUH iLO[10]: Fan speed at 100% — cooling insufficient
+Apr 20 11:09:18 PDU-Rack-07-RUH iLO[10]: Risk of thermal throttling in 10 minutes
+Apr 19 20:13:30 PDU-Rack-07-RUH IPMI[20]: Ambient temp sensor: 86°C, CPU temp: 98°C — check CRAC unit in rack zone B",Pending
+INC-3004,2026-04-15 11:50,Dynatrace APM,Application,Critical,IMS VoIP Call Drop Rate High — eNB-MED-Tower-033,"Apr 06 15:21:47 SGW-RUH-01 ims-cscf[88]: Call drop rate: 35% (threshold: 5%)
+Apr 22 11:19:27 PGW-CORE-01 ims-cscf[88]: SIP 503 Service Unavailable from P-CSCF
+Apr 16 21:08:24 eNB-MED-Tower-033 ims-cscf[88]: Media gateway overloaded — RTP packet loss 9%
+Apr 28 16:06:17 SGW-RUH-01 ims-cscf[88]: Subscribers affected: 661",Pending
+INC-3015,2026-04-15 11:56,HP iLO / IPMI,Hardware,Critical,UPS Battery Low on UPS-DataCenter-RUH-A,"Apr 15 15:49:37 ups-mgr[77]: UPS battery capacity: 16% — critical threshold 20% breached
+Apr 11 04:50:41 ups-mgr[77]: Estimated runtime on battery: 4 minutes
+Apr 04 17:03:41 ups-mgr[77]: Mains power input: FAILED — running on battery since 18 minutes
+Apr 26 06:32:01 ups-mgr[77]: ALERT: Initiate graceful shutdown of non-critical systems",Pending
+INC-3019,2026-04-15 12:05,SolarWinds NPM,Network,Critical,BGP Session Down on BNG-02-JED — Peer 172.16.0.1,"Apr 28 05:22:32 BNG-02-JED BGP[1234]: %BGP-5-ADJCHANGE: neighbor 172.16.0.1 Down BGP Notification sent, error code Cease (subcode peer de-configured)
+Apr 10 22:54:48 BNG-02-JED BGP[1234]: %BGP-3-NOTIFICATION: sent to neighbor 172.16.0.1 6/3 (cease/peer unconfigured) 0 bytes
+Apr 13 19:55:17 BNG-02-JED BGP[1234]: %BGP-5-ADJCHANGE: neighbor 172.16.0.1 Down Interface flap",Pending
+INC-3005,2026-04-15 12:07,HP iLO / IPMI,Hardware,High,NIC Failure on Switch-Core-RUH-01 — eth2,"Apr 09 06:32:39 Switch-Core-RUH-01 kernel[1]: Network interface eth3 link failure detected
+Apr 16 10:33:29 Switch-Core-RUH-01 kernel[1]: ethtool: Link is Down — auto-negotiation failed
+Apr 10 05:24:07 Switch-Core-RUH-01 bonding[55]: Failover to eth1 complete — bond0 operating on single link
+Apr 25 08:08:18 Switch-Core-RUH-01 iLO[10]: NIC teaming degraded — investigate NIC or cable on failed port",Pending
+INC-3032,2026-04-15 12:21,CloudWatch / Azure Monitor,Cloud,Critical,S3 Bucket Public Access Detected — emircom-backup-prod,"Apr 02 16:41:52 AWS Config: S3 bucket emircom-backup-prod ACL changed to public-read
+Apr 23 01:24:07 AWS Config: Change made by IAM user devops-temp (last login: 3 days ago)
+Apr 22 20:20:05 AWS Config: 2.5TB sensitive data potentially exposed
+Apr 17 15:23:01 AWS GuardDuty: S3 bucket policy allows unauthenticated access — remediate immediately",Pending
+INC-3044,2026-04-15 12:40,Dynatrace APM,Application,High,Database Replication Lag — api.emircom.net: 47 minutes behind,"Apr 18 23:32:59 mysql[3306]: Slave_IO_Running: Yes, Slave_SQL_Running: Yes
+Apr 03 20:50:34 mysql[3306]: Seconds_Behind_Master: 5105
+Apr 09 13:35:48 mysql[3306]: Large transaction detected: binlog pos 384770 — DDL operation running
+Apr 03 04:09:37 mysql[3306]: Replication lag increasing — read queries on replica returning stale data",Pending
+INC-3037,2026-04-15 12:53,SolarWinds NPM,Network,High,Interface Serial0/1/0 Down on Core-SW-RUH-01,"Apr 02 10:06:53 Core-SW-RUH-01 ifmgr[145]: %LINK-3-UPDOWN: Interface Serial0/1/0, changed state to down
+Apr 14 19:08:23 Core-SW-RUH-01 ifmgr[145]: %LINEPROTO-5-UPDOWN: Line protocol on Interface Serial0/1/0, changed state to down
+Apr 11 10:24:11 Core-SW-RUH-01 chassis[500]: Physical layer alarm on Serial0/1/0: Loss of signal detected, check fiber/cable",Pending
+INC-3003,2026-04-15 12:57,SolarWinds NPM,Network,Critical,BGP Session Down on BNG-02-JED — Peer 172.16.0.1,"Apr 15 23:16:21 BNG-02-JED BGP[1234]: %BGP-5-ADJCHANGE: neighbor 172.16.0.1 Down BGP Notification sent, error code Cease (subcode peer de-configured)
+Apr 18 01:48:15 BNG-02-JED BGP[1234]: %BGP-3-NOTIFICATION: sent to neighbor 172.16.0.1 6/3 (cease/peer unconfigured) 0 bytes
+Apr 06 05:27:23 BNG-02-JED BGP[1234]: %BGP-5-ADJCHANGE: neighbor 172.16.0.1 Down Interface flap",Pending
+INC-3021,2026-04-15 12:59,Dynatrace APM,Application,High,Database Replication Lag — CRM-PROD-01: 71 minutes behind,"Apr 04 03:57:53 mysql[3306]: Slave_IO_Running: Yes, Slave_SQL_Running: Yes
+Apr 24 12:11:07 mysql[3306]: Seconds_Behind_Master: 3654
+Apr 08 13:50:07 mysql[3306]: Large transaction detected: binlog pos 594020 — DDL operation running
+Apr 10 19:17:23 mysql[3306]: Replication lag increasing — read queries on replica returning stale data",Pending

@@ -1,0 +1,14 @@
+graph TD;
+        __start__([<p>__start__</p>]):::first
+        triage(triage)
+        network_ops(network_ops)
+        security_ops(security_ops)
+        __end__([<p>__end__</p>]):::last
+        __start__ --> triage;
+        triage -.-> network_ops;
+        triage -.-> security_ops;
+        network_ops --> __end__;
+        security_ops --> __end__;
+        classDef default fill:#f2f0ff,line-height:1.2
+        classDef first fill-opacity:0
+        classDef last fill:#bfb6fc

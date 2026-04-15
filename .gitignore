@@ -1,0 +1,44 @@
+# ── Secrets — NEVER commit these ─────────────────────────────────────────────
+.env
+
+# ── Python ────────────────────────────────────────────────────────────────────
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ── Data — runtime files, not source ─────────────────────────────────────────
+data/processed_tickets.json
+data/session_state.json
+data/noc_memory.db
+data/noc_memory.db-shm
+data/noc_memory.db-wal
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+streamlit/streamlit_output.log
+
+# ── Binaries ──────────────────────────────────────────────────────────────────
+ngrok.exe
+*.exe
+
+# ── Node / React ──────────────────────────────────────────────────────────────
+node_modules/
+react/frontend/node_modules/
+frontend/node_modules/
+dist/
+.vite/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

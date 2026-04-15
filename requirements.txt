@@ -1,0 +1,13 @@
+langgraph
+langgraph-checkpoint-sqlite
+langchain
+langchain-core
+langchain-openai
+python-dotenv
+pandas
+streamlit
+langchain-community
+sentence-transformers
+python-docx
+openpyxl
+plotly
