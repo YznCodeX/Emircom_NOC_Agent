@@ -82,7 +82,24 @@
       "Bash(venv/Scripts/python -c ':*)",
       "Bash(venv/Scripts/python generate_mock_data.py)",
       "Bash(venv/Scripts/python -m py_compile streamlit/app.py)",
-      "Bash(venv/Scripts/python -m py_compile src/agent_graph.py)"
+      "Bash(venv/Scripts/python -m py_compile src/agent_graph.py)",
+      "Bash(dir \"C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\\\\src\")",
+      "Bash(dir \"C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\")",
+      "Bash(\".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('streamlit/app.py'\\).read\\(\\)\\); print\\('OK — no syntax errors'\\)\")",
+      "Bash(Start-Process powershell:*)",
+      "Bash(curl -s -X GET \"http://localhost/api.php/v1/initSession\" -H \"Content-Type: application/json\" -H \"App-Token: Yebjkwq1QLMpq1yKkRfvNPwMvEKIMHelrN5smCke\" -H \"Authorization: user_token GmPD9nDa3C9nBj0KWbm6cx927XtpmW7tsDlvRhQE\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('session_token','FAIL'\\)\\)\")",
+      "Bash(.venvScriptspython.exe -c ':*)",
+      "Bash(cmd /c \"venv\\\\Scripts\\\\python.exe -c \\\\\"import requests; GLPI_URL='http://localhost/api.php/v1'; APP_TOKEN='Yebjkwq1QLMpq1yKkRfvNPwMvEKIMHelrN5smCke'; auth=requests.get\\(f'{GLPI_URL}/initSession',headers={'Content-Type':'application/json','App-Token':APP_TOKEN,'Authorization':'user_token GmPD9nDa3C9nBj0KWbm6cx927XtpmW7tsDlvRhQE'},timeout=5\\); st=auth.json\\(\\).get\\('session_token'\\); h={'Content-Type':'application/json','Session-Token':st,'App-Token':APP_TOKEN}; r=requests.get\\(f'{GLPI_URL}/Ticket',headers=h,params={'range':'0-10','sort':'id','order':'DESC'},timeout=5\\); [print\\(f'  #{t[chr\\(105\\)+\\(chr\\(100\\)\\)}] {t[chr\\(110\\)+chr\\(97\\)+chr\\(109\\)+chr\\(101\\)]}'\\) for t in r.json\\(\\)]\\\\\"\")",
+      "Bash(cmd /c \"C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\\\\venv\\\\Scripts\\\\python.exe C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\\\\check_glpi.py\")",
+      "Bash(cmd /c \"docker exec glpi php /var/www/html/front/cron.php 2>&1\")",
+      "Bash(cmd /c \"docker exec glpi php /var/www/html/front/cron.php\")",
+      "Bash(docker exec:*)",
+      "Bash(findstr /i \"gmail\\\\|smtp\\\\|email\\\\|password\\\\|pass\" \"C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\\\\.env\")",
+      "Bash(\".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('src/agent_graph.py'\\).read\\(\\)\\); ast.parse\\(open\\('src/email_sender.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(\".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('streamlit/app.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -m py_compile streamlit/app.py)",
+      "Bash(del \"C:\\\\Users\\\\Yazan\\\\Desktop\\\\Emircom_NOC_Agent\\\\data\\\\session_state.json\")"
     ]
   }
 }
