@@ -1,7 +1,7 @@
 # Emircom NOC Agent — Technical Documentation
 
-**Version:** 1.2  
-**Date:** April 15, 2026  
+**Version:** 1.3  
+**Date:** April 16, 2026  
 **Author:** Yazan  
 **Status:** Prototype — pending supervisor approval for production data access
 
@@ -777,6 +777,12 @@ Returns a multi-sheet Excel file for download.
 | Meraki webhook receiver — real-time alerts via FastAPI (port 8003) | Standalone |
 | Data source selector — Mock CSV / DNA Center / Both | Streamlit |
 | Realistic mock data — 50 unique telecom-grade alerts with syslog logs | All |
+| Streamlit queue view redesigned — OpManager-style horizontal rows, always-visible, no click-to-expand | Streamlit |
+| Per-row ▶ Process button — any ticket can be picked from queue, not just next in sequence | Streamlit |
+| ← Back to Queue button in HITL panel — no page restart needed to return to queue | Streamlit |
+| Severity filter buttons in left-side panel (st.columns([1,5]) layout) | Streamlit |
+| Live SLA timer ticking during HITL review (1-second rerun loop, only active when waiting_for_user) | Streamlit |
+| Auto-scan removed — engineer controls flow manually via Scan Next or per-row Process button | Streamlit |
 
 ### Pending 🔲
 
@@ -802,6 +808,7 @@ Returns a multi-sheet Excel file for download.
 | Python 3.14 Pydantic V1 warnings | Harmless console warnings | Upgrade Pydantic to V2 in future |
 | RAG not wired in | Agent answers from training knowledge only | Wire `rag_core.py` when runbooks are available |
 | Single-user (no auth) | Anyone with URL can access | Add authentication before production use |
+| No auto-scan — engineer must manually trigger each ticket (intentional design for HITL control) | Engineer must click Scan Next or ▶ Process per ticket | Intentional — full engineer control over flow |
 
 ---
 
@@ -852,6 +859,20 @@ Returns a multi-sheet Excel file for download.
 
 ---
 
-*Documentation last updated: April 13, 2026*  
+## 15. Changelog
+
+**April 16, 2026:**
+- Streamlit UI overhaul: queue redesigned to OpManager-style horizontal rows
+- Auto-scan removed; engineers control flow via Scan Next or per-row ▶ Process button
+- ← Back to Queue button added to HITL panel (no more full page restart)
+- Severity filters moved to left-side panel (always visible alongside queue)
+- SLA timer ticks live every second during HITL review
+- Fixed int64 JSON serialization bug in save_ticket_index()
+- Fixed corrupted JSON auto-recovery in load_ticket_index()
+- GitHub repo pushed: YznCodeX/Emircom_NOC_Agent (main branch)
+
+---
+
+*Documentation last updated: April 16, 2026*  
 *Project path: `C:\Users\Yazan\Desktop\Emircom_NOC_Agent`*  
 *To resume in a new session: tell Claude to read `PROJECT_REPORT.md`*

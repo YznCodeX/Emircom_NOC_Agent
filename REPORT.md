@@ -134,6 +134,7 @@ The same AI agent powers three separate interfaces:
 | April 12, 2026 (evening) | Email notifications fully working (Gmail SMTP + App Password + noc.agent user), ITIL categories created and auto-assigned, email template redesigned to clean NOC-branded layout, duplicate AI comment bug fixed |
 | April 13, 2026 | Cisco DNA Center connector built (`cisco/devnet_connector.py`) — connects to Always-On DevNet sandbox, pulls live device health (CPU, memory, health score), generates alerts automatically |
 | April 15, 2026 | Meraki webhook receiver built (`meraki/webhook_receiver.py` + `meraki/meraki_parser.py`) — FastAPI on port 8003, receives real Meraki alerts, runs full agent pipeline automatically. Tested end-to-end with 3 alert types (WAN down, ARP spoof, AP disconnected) → GLPI tickets created. Streamlit data source selector added (Mock CSV / DNA Center / Both). Analytics dashboard upgraded with Plotly charts (6 KPIs, donut/bar/line charts, confidence histogram, SLA breakdown, filterable audit log). Mock data completely rewritten — 50 unique telecom-grade alerts with multi-line syslog logs, Emircom device naming, cell tower and VoIP alerts. Deduplication engine upgraded to SQLite persistence — survives restarts, remembers last 10 alerts across sessions. Assigned group now set at ticket creation time — emails show correct group immediately. |
+| **April 16:** | Streamlit UI overhaul — OpManager-style queue (horizontal rows, always visible), per-row ▶ Process button (pick any ticket from queue), ← Back to Queue button (no page restart), severity filters in left panel, live SLA timer during HITL review, auto-scan removed for full engineer control, int64 + JSON recovery bug fixes. GitHub repo pushed to YznCodeX/Emircom_NOC_Agent (main branch). |
 
 ---
 
@@ -152,11 +153,20 @@ Everything listed in Section 2 is functional and has been tested. The system can
 | Item | Reason Pending |
 |------|---------------|
 | Multi-agent refactor | Planned Week 2 |
-| Chatbot interface | Planned Week 2 |
+| Chatbot interface | Planned Week 2 — pending queue context, Paste Logs, response streaming |
 | GLPI SLA escalation rules | Not yet configured |
 | RAG with runbooks | No real Emircom runbooks available — will write realistic SOPs |
 | Real Remedy connection | Waiting for IT department API access |
 | Microsoft Teams/Email integration | Waiting for IT department authorization |
+
+### Recently Completed
+| Item | Date |
+|------|------|
+| GitHub repo pushed (YznCodeX/Emircom_NOC_Agent, main branch) | April 16, 2026 |
+| Streamlit queue redesigned — OpManager-style horizontal rows, always visible, per-row ▶ Process button | April 16, 2026 |
+| ← Back to Queue button in HITL panel (no page restart) | April 16, 2026 |
+| Severity filters moved to left-side panel | April 16, 2026 |
+| Live SLA timer ticking during HITL review | April 16, 2026 |
 
 ---
 
@@ -177,11 +187,11 @@ Everything listed in Section 2 is functional and has been tested. The system can
 ## 7. Next Steps
 
 ### Week 2 (Next)
-1. Multi-agent refactor — Supervisor agent + specialized agents + Notification agent
-2. Chatbot — natural language queries over processed tickets and GLPI data
+1. Multi-agent refactor — Supervisor agent + specialized sub-agents
+2. Chatbot improvements — pending queue context, Paste Logs, response streaming
 
 ### Week 3
-3. React analytics tab improvements
+3. React analytics tab
 4. RAG runbooks — write realistic Emircom SOPs, wire into agent
 5. GLPI SLA escalation rules
 
@@ -230,4 +240,4 @@ Everything listed in Section 2 is functional and has been tested. The system can
 ---
 
 *Report will be updated as the project progresses.*  
-*Last updated: April 15, 2026*
+*Last updated: April 16, 2026*
