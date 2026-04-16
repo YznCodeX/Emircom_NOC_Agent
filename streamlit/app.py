@@ -1077,67 +1077,75 @@ Emircom"""
     if not st.session_state.waiting_for_user:
         pending = get_pending_tickets()
         if pending:
-            # ── Severity filter buttons ──────────────────────────────────────
             all_count  = len(pending)
             crit_count = sum(1 for t in pending if t.get("Severity") == "Critical")
             high_count = sum(1 for t in pending if t.get("Severity") == "High")
             med_count  = sum(1 for t in pending if t.get("Severity") == "Medium")
             low_count  = sum(1 for t in pending if t.get("Severity") == "Low")
 
-            fa, fc, fh, fm, fl = st.columns(5)
-            if fa.button(f"All  {all_count}",       width="stretch",
-                         type="primary" if st.session_state.queue_filter == "All"      else "secondary"):
-                st.session_state.queue_filter = "All";      st.rerun()
-            if fc.button(f"🔴 Critical  {crit_count}", width="stretch",
-                         type="primary" if st.session_state.queue_filter == "Critical" else "secondary"):
-                st.session_state.queue_filter = "Critical"; st.rerun()
-            if fh.button(f"🟠 High  {high_count}",   width="stretch",
-                         type="primary" if st.session_state.queue_filter == "High"     else "secondary"):
-                st.session_state.queue_filter = "High";     st.rerun()
-            if fm.button(f"🟡 Medium  {med_count}",  width="stretch",
-                         type="primary" if st.session_state.queue_filter == "Medium"   else "secondary"):
-                st.session_state.queue_filter = "Medium";   st.rerun()
-            if fl.button(f"🟢 Low  {low_count}",     width="stretch",
-                         type="primary" if st.session_state.queue_filter == "Low"      else "secondary"):
-                st.session_state.queue_filter = "Low";      st.rerun()
+            # ── Left filter panel + Right queue ─────────────────────────────
+            filter_col, queue_col = st.columns([1, 5])
 
-            # Apply filter
-            if st.session_state.queue_filter != "All":
-                pending = [t for t in pending if t.get("Severity") == st.session_state.queue_filter]
+            with filter_col:
+                st.markdown("**Filter**")
+                st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
+                for label, key, count in [
+                    ("All",      "All",      all_count),
+                    ("🔴 Critical", "Critical", crit_count),
+                    ("🟠 High",    "High",     high_count),
+                    ("🟡 Medium",  "Medium",   med_count),
+                    ("🟢 Low",     "Low",      low_count),
+                ]:
+                    is_active = st.session_state.queue_filter == key
+                    btn_label = f"**{label}** &nbsp; `{count}`" if is_active else f"{label} &nbsp; `{count}`"
+                    if st.button(
+                        f"{label}  {count}",
+                        key=f"filter_{key}",
+                        width="stretch",
+                        type="primary" if is_active else "secondary",
+                    ):
+                        st.session_state.queue_filter = key
+                        st.rerun()
 
-            active_filter = st.session_state.queue_filter
-            st.markdown(f"#### 📋 Alert Queue — **{len(pending)}** {'pending' if active_filter == 'All' else active_filter + ' alerts'}")
+            with queue_col:
+                # Apply filter
+                filtered = pending if st.session_state.queue_filter == "All" \
+                    else [t for t in pending if t.get("Severity") == st.session_state.queue_filter]
 
-            # Header
-            h = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 1])
-            for col, lbl in zip(h, ["Severity", "Ticket ID", "Category", "Alert Message", "Node", "Action"]):
-                col.markdown(f"<p style='font-size:11px;font-weight:700;color:#6b7280;"
-                             f"text-transform:uppercase;margin:0;padding-bottom:4px;'>{lbl}</p>",
-                             unsafe_allow_html=True)
-            st.markdown("<hr style='margin:2px 0 6px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+                active = st.session_state.queue_filter
+                st.markdown(f"#### 📋 {'All Alerts' if active == 'All' else active + ' Alerts'} — **{len(filtered)}** tickets")
 
-            # Rows
-            for t in pending:
-                tid      = t.get("Ticket_ID", "")
-                cat      = t.get("Category", "Unknown")
-                sev      = t.get("Severity", "Medium")
-                msg      = t.get("Alert_Message", "")
-                node     = str(t.get("Affected_Node", "—"))
-                cat_icon = CATEGORY_ICONS.get(cat, "📋")
-                sev_icon = SEV_ICON.get(sev, "⚪")
+                # Header row
+                h = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 0.8])
+                for col, lbl in zip(h, ["Severity", "Ticket ID", "Category", "Alert Message", "Node", ""]):
+                    col.markdown(
+                        f"<p style='font-size:11px;font-weight:700;color:#6b7280;"
+                        f"text-transform:uppercase;margin:0;padding-bottom:2px;'>{lbl}</p>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("<hr style='margin:2px 0 4px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
 
-                c0, c1, c2, c3, c4, c5 = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 1])
-                c0.markdown(f"**{sev_icon} {sev}**")
-                c1.code(tid, language=None)
-                c2.markdown(f"{cat_icon} {cat}")
-                c3.markdown(f"{msg[:95]}{'…' if len(msg) > 95 else ''}")
-                c4.caption(node[:28])
-                if c5.button("▶", key=f"proc_{tid}", help=f"Process {tid}", type="primary"):
-                    analyze_current_ticket(specific_ticket=t)
-                    st.rerun()
+                # Data rows
+                for t in filtered:
+                    tid      = t.get("Ticket_ID", "")
+                    cat      = t.get("Category", "Unknown")
+                    sev      = t.get("Severity", "Medium")
+                    msg      = t.get("Alert_Message", "")
+                    node     = str(t.get("Affected_Node", "—"))
+                    cat_icon = CATEGORY_ICONS.get(cat, "📋")
+                    sev_icon = SEV_ICON.get(sev, "⚪")
 
-                st.markdown("<hr style='margin:4px 0;border-color:#f3f4f6;'>",
-                            unsafe_allow_html=True)
+                    c0, c1, c2, c3, c4, c5 = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 0.8])
+                    c0.markdown(f"**{sev_icon} {sev}**")
+                    c1.code(tid, language=None)
+                    c2.markdown(f"{cat_icon} {cat}")
+                    c3.markdown(f"{msg[:95]}{'…' if len(msg) > 95 else ''}")
+                    c4.caption(node[:28])
+                    if c5.button("▶", key=f"proc_{tid}", help=f"Process {tid}", type="primary"):
+                        analyze_current_ticket(specific_ticket=t)
+                        st.rerun()
+
+                    st.markdown("<hr style='margin:3px 0;border-color:#f3f4f6;'>", unsafe_allow_html=True)
         else:
             st.success("🎉 All tickets processed — queue is clear!")
 
@@ -1522,4 +1530,9 @@ Instructions:
         if st.button("🗑️ Clear Chat", width="content"):
             st.session_state.chat_history = []
             st.rerun()
+
+# ─── SLA Timer tick — only rerenders when HITL panel is active ───────────────
+if st.session_state.waiting_for_user:
+    time.sleep(1)
+    st.rerun()
 
