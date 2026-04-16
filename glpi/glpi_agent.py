@@ -12,6 +12,7 @@ Run with:
 import re
 import time
 import json
+import subprocess
 import requests
 from datetime import datetime
 import sys, os
@@ -304,6 +305,19 @@ Confidence: {analysis.get('Confidence_Score', 'N/A')}%
 Analyzed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}""".strip()
 
 
+def flush_notifications():
+    """Trigger GLPI cron inside Docker to flush the email notification queue."""
+    try:
+        subprocess.run(
+            ["docker", "exec", "glpi", "php",
+             "/var/www/html/glpi/front/cron.php", "--allow-superuser"],
+            timeout=15, capture_output=True
+        )
+        print("  📧 Notification queue flushed")
+    except Exception as e:
+        print(f"  ⚠️ Could not flush notifications: {e}")
+
+
 def run():
     print("GLPI NOC Agent started — polling every", POLL_INTERVAL, "seconds")
     print("=" * 50)
@@ -377,6 +391,9 @@ def run():
 
                     # Mark as processed
                     processed_ids.add(tid)
+
+                # Flush notification queue so emails go out immediately
+                flush_notifications()
 
             else:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] No new tickets", end="\r")

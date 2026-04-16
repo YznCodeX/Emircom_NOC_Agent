@@ -499,16 +499,25 @@ def _glpi_create_ticket(title: str, description: str, priority: str, category: s
 
 def remedy_node(state: AgentState):
     analysis_raw = state.get("analysis", "{}")
+    severity           = "Medium"
+    categorization     = state.get("category", "Unknown")
+    affected_node      = state.get("ticket_id", "")
+    symptom            = ""
+    root_cause         = ""
+    business_impact    = ""
+    recommended_action = ""
+    confidence         = ""
+
     try:
-        analysis = json.loads(analysis_raw.replace("```json", "").replace("```", "").strip())
-        severity         = analysis.get("Severity", "Medium")
-        affected_node    = analysis.get("Affected_Node", "")
-        categorization   = analysis.get("Categorization", state.get("category", "Unknown"))
-        symptom          = analysis.get("Symptom_Description", "")
-        root_cause       = analysis.get("Root_Cause", "")
-        business_impact  = analysis.get("Business_Impact", "")
+        analysis       = json.loads(analysis_raw.replace("```json", "").replace("```", "").strip())
+        severity           = analysis.get("Severity", "Medium")
+        affected_node      = analysis.get("Affected_Node", "")
+        categorization     = analysis.get("Categorization", state.get("category", "Unknown"))
+        symptom            = analysis.get("Symptom_Description", "")
+        root_cause         = analysis.get("Root_Cause", "")
+        business_impact    = analysis.get("Business_Impact", "")
         recommended_action = analysis.get("Recommended_Action", "")
-        confidence       = analysis.get("Confidence_Score", "")
+        confidence         = analysis.get("Confidence_Score", "")
 
         description = (
             f"🤖 AI NOC Agent Analysis\n"
@@ -524,15 +533,32 @@ def remedy_node(state: AgentState):
             f"RECOMMENDED ACTION\n{'-'*30}\n{recommended_action}\n"
         )
     except Exception:
-        severity = "Medium"
-        categorization = state.get("category", "Unknown")
-        affected_node = state.get("ticket_id", "")
         description = analysis_raw
 
     title = f"[NOC] {categorization} — {affected_node}"
 
     glpi_id = _glpi_create_ticket(title, description, severity, categorization)
     print(f"[{state['ticket_id']}] GLPI Ticket Created: #{glpi_id}")
+
+    # Send email directly via Gmail SMTP (bypasses GLPI's cron)
+    try:
+        from src.email_sender import send_alert_email
+        send_alert_email(
+            ticket_id          = state.get("ticket_id", ""),
+            glpi_ticket_id     = str(glpi_id),
+            category           = categorization,
+            severity           = severity,
+            affected_node      = affected_node,
+            symptom            = symptom,
+            root_cause         = root_cause,
+            recommended_action = recommended_action,
+            business_impact    = business_impact,
+            confidence_score   = str(confidence),
+            correlated_with    = state.get("correlated_with", ""),
+        )
+    except Exception as e:
+        print(f"[{state['ticket_id']}] ⚠️ Email error: {e}")
+
     return {"glpi_ticket_id": glpi_id}
 
 # --- بناء الجراف مع المسارات الجديدة ---

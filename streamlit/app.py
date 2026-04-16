@@ -39,13 +39,17 @@ def save_processed_tickets(tickets):
 
 def load_ticket_index():
     if os.path.exists(SESSION_STATE_PATH):
-        with open(SESSION_STATE_PATH, "r") as f:
-            return json.load(f).get("ticket_index", 0)
+        try:
+            with open(SESSION_STATE_PATH, "r") as f:
+                return int(json.load(f).get("ticket_index", 0))
+        except (json.JSONDecodeError, ValueError):
+            # File corrupted — reset it
+            save_ticket_index(0)
     return 0
 
 def save_ticket_index(index):
     with open(SESSION_STATE_PATH, "w") as f:
-        json.dump({"ticket_index": index}, f)
+        json.dump({"ticket_index": int(index)}, f)
 
 # --- Session State ---
 if "ticket_index" not in st.session_state:
@@ -58,20 +62,12 @@ if "analysis_result" not in st.session_state:
     st.session_state.analysis_result = ""
 if "current_node" not in st.session_state:
     st.session_state.current_node = "Idle 💤"
-if "is_scanning" not in st.session_state:
-    st.session_state.is_scanning = False
 if "processed_tickets" not in st.session_state:
     st.session_state.processed_tickets = load_processed_tickets()
 if "original_category" not in st.session_state:
     st.session_state.original_category = ""
 if "sla_start_time" not in st.session_state:
     st.session_state.sla_start_time = None
-if "auto_scan_enabled" not in st.session_state:
-    st.session_state.auto_scan_enabled = False
-if "last_auto_scan" not in st.session_state:
-    st.session_state.last_auto_scan = 0.0
-if "last_checked_display" not in st.session_state:
-    st.session_state.last_checked_display = "Never"
 if "confidence_score" not in st.session_state:
     st.session_state.confidence_score = None
 if "confidence_reason" not in st.session_state:
@@ -84,8 +80,9 @@ if "handoff_doc_buf" not in st.session_state:
     st.session_state.handoff_doc_buf = None
 if "handoff_ready" not in st.session_state:
     st.session_state.handoff_ready = False
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []  # list of {"role": "user"|"assistant", "content": "..."}
 
-AUTO_SCAN_INTERVAL = 30
 
 SLA_THRESHOLDS = {
     "CRITICAL": 15 * 60,
@@ -621,22 +618,6 @@ with st.sidebar:
     st.caption(f"🕐 {datetime.now().strftime('%d %b %Y  %H:%M:%S')}")
     st.divider()
 
-    st.markdown("#### ⚙️ Auto-Scan")
-    auto_scan_toggle = st.toggle(
-        "Enable Auto-Scan (every 30s)",
-        value=st.session_state.auto_scan_enabled,
-    )
-    if auto_scan_toggle != st.session_state.auto_scan_enabled:
-        st.session_state.auto_scan_enabled = auto_scan_toggle
-        if auto_scan_toggle:
-            st.session_state.last_auto_scan = 0.0
-
-    if st.session_state.auto_scan_enabled:
-        st.success("🟢 Auto-Scan: ACTIVE")
-        st.caption(f"Last checked: {st.session_state.last_checked_display}")
-    else:
-        st.warning("🔴 Auto-Scan: OFF")
-
     st.divider()
     st.markdown("#### 📡 Data Source")
     data_source = st.radio(
@@ -646,7 +627,7 @@ with st.sidebar:
         help="Mock CSV = sample data  |  DNA Center = live Cisco sandbox  |  Both = combined"
     )
     if data_source in ("Cisco DNA Center", "Both"):
-        if st.button("🔄 Refresh Live Data", use_container_width=True):
+        if st.button("🔄 Refresh Live Data", width="stretch"):
             st.session_state.pop("dnac_alerts_cache", None)
 
     st.divider()
@@ -727,22 +708,31 @@ Reply ONLY with a valid JSON array, no markdown:
     return json.loads(raw)
 
 # ─── Analyze Ticket ─────────────────────────────────────────────────────────
-def analyze_current_ticket():
-    # Skip tickets already processed via Queue View
-    processed = get_processed_ids()
-    while st.session_state.ticket_index < len(df):
-        if df.iloc[st.session_state.ticket_index]["Ticket_ID"] not in processed:
-            break
-        st.session_state.ticket_index += 1
-        save_ticket_index(st.session_state.ticket_index)
+def analyze_current_ticket(specific_ticket: dict | None = None):
+    """Analyze a specific ticket dict, or fall through to the next unprocessed one."""
 
-    if st.session_state.ticket_index >= len(df):
-        st.session_state.is_scanning = False
-        st.session_state.ticket_index = 0
-        save_ticket_index(0)
-        return
+    if specific_ticket is not None:
+        # Find this ticket's index in df so ticket_index stays in sync
+        match = df[df["Ticket_ID"] == specific_ticket["Ticket_ID"]]
+        if not match.empty:
+            st.session_state.ticket_index = match.index[0]
+            save_ticket_index(st.session_state.ticket_index)
+        ticket = pd.Series(specific_ticket)
+    else:
+        # Skip tickets already processed
+        processed = get_processed_ids()
+        while st.session_state.ticket_index < len(df):
+            if df.iloc[st.session_state.ticket_index]["Ticket_ID"] not in processed:
+                break
+            st.session_state.ticket_index += 1
+            save_ticket_index(st.session_state.ticket_index)
 
-    ticket = df.iloc[st.session_state.ticket_index]
+        if st.session_state.ticket_index >= len(df):
+            st.session_state.ticket_index = 0
+            save_ticket_index(0)
+            return
+
+        ticket = df.iloc[st.session_state.ticket_index]
     st.session_state.thread_id = ticket["Ticket_ID"]
     st.session_state.original_category = ticket["Category"]
     config = {"configurable": {"thread_id": st.session_state.thread_id}}
@@ -781,10 +771,10 @@ def analyze_current_ticket():
 # ─── Page Header ────────────────────────────────────────────────────────────
 st.title("🛡️ Emircom NOC & SOC Command Center")
 
-tab1, tab2, tab3 = st.tabs(["🚀 Live Operations", "📡 Queue View", "📊 Analytics Dashboard"])
+tab1, tab2, tab3 = st.tabs(["🚀 Operations Center", "📊 Analytics Dashboard", "🤖 NOC Chatbot"])
 
 # ════════════════════════════════════════════════════════════════════════════
-with tab1:
+with tab1:  # Operations Center (merged Live Ops + Queue View)
 
     # ── Live Stats Strip ────────────────────────────────────────────────────
     total_processed = len(st.session_state.processed_tickets)
@@ -801,53 +791,24 @@ with tab1:
     s4.metric("🗑️ Duplicates",  dropped_count)
     s5.metric("❌ Rejected",     rejected_count)
     s6.metric("🚨 SLA Breached", sla_breached)
+    # ── Controls Strip ───────────────────────────────────────────────────────
+    if st.button("🚀 Scan Next", type="primary", width="content",
+                 disabled=st.session_state.waiting_for_user):
+        analyze_current_ticket()
+        st.rerun()
+
     st.divider()
 
-    # ── Idle State (no ticket waiting) ──────────────────────────────────────
-    if not st.session_state.waiting_for_user:
-        if st.session_state.ticket_index < len(df):
-
-            # Mini ticket cards for next 3 in queue
-            st.markdown("#### 📋 Upcoming Queue")
-            preview = df.iloc[st.session_state.ticket_index : st.session_state.ticket_index + 3]
-            card_cols = st.columns(max(len(preview), 1))
-            for i, (_, t) in enumerate(preview.iterrows()):
-                with card_cols[i]:
-                    icon = CATEGORY_ICONS.get(t["Category"], "📋")
-                    with st.container(border=True):
-                        st.markdown(f"**{t['Ticket_ID']}**")
-                        st.caption(f"{icon} {t['Category']}")
-                        msg = t["Alert_Message"]
-                        st.caption(msg[:70] + "…" if len(msg) > 70 else msg)
-
-            st.divider()
-
-            if st.session_state.auto_scan_enabled:
-                time_since = time.time() - st.session_state.last_auto_scan
-                secs_left  = max(0, int(AUTO_SCAN_INTERVAL - time_since))
-                btn_col, info_col = st.columns([1, 3])
-                with btn_col:
-                    if st.button("🚀 Scan Now", type="primary", use_container_width=True):
-                        st.session_state.is_scanning = True
-                        st.session_state.last_auto_scan = time.time()
-                        st.session_state.last_checked_display = datetime.now().strftime("%H:%M:%S")
-                        analyze_current_ticket()
-                        st.rerun()
-                with info_col:
-                    if secs_left > 0:
-                        st.info(f"⏱️ Next auto-scan in **{secs_left}s**")
-                    else:
-                        st.info("⏱️ Auto-scan running…")
-            else:
-                if st.button("🚀 Start NOC Auto-Scan", type="primary"):
-                    st.session_state.is_scanning = True
-                    analyze_current_ticket()
-                    st.rerun()
-        else:
-            st.success("🎉 All tickets in the queue have been processed!")
-
-    # ── HITL Panel ──────────────────────────────────────────────────────────
+    # ── HITL Panel (full-width, shown when ticket is awaiting decision) ───────
     if st.session_state.waiting_for_user:
+
+        if st.button("← Back to Queue", type="secondary", width="content"):
+            st.session_state.waiting_for_user = False
+            st.session_state.current_node     = "Idle 💤"
+            st.session_state.analysis_result  = ""
+            st.session_state.confidence_score = None
+            st.session_state.confidence_reason = ""
+            st.rerun()
 
         # Parse analysis JSON — robust extractor handles extra text around JSON
         def _extract_json(raw: str) -> dict:
@@ -970,7 +931,7 @@ with tab1:
                     "Details": [category, affected_node, severity,
                                 biz_impact, symptom, root_cause, rec_action],
                 })
-                st.dataframe(summary_df, hide_index=True, use_container_width=True, height=280)
+                st.dataframe(summary_df, hide_index=True, width="stretch", height=280)
 
             with tab_logs:
                 raw_logs = "No logs available."
@@ -1023,8 +984,8 @@ Emircom"""
                     status_to_save    = "Approved"
 
                 b1, b2 = st.columns(2)
-                approve_clicked = b1.button(btn_approve_label, type="primary", use_container_width=True)
-                reject_clicked  = b2.button("❌ Reject",                        use_container_width=True)
+                approve_clicked = b1.button(btn_approve_label, type="primary", width="stretch")
+                reject_clicked  = b2.button("❌ Reject",                        width="stretch")
 
                 st.divider()
 
@@ -1110,144 +1071,78 @@ Emircom"""
                 analyze_current_ticket()
                 st.rerun()
 
-# ════════════════════════════════════════════════════════════════════════════
-with tab2:  # Queue View
+    # ── Pending Queue ────────────────────────────────────────────────────────
+    SEV_ICON = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}
 
-    SEV_ORDER  = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
-    SEV_ICONS  = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}
-    ALERT_ICONS = {
-        "Device Down":    "📡",
-        "Link Down":      "🔗",
-        "Resource Down":  "📉",
-        "Security Alert": "🔒",
-        "Performance":    "📊",
-        "Other":          "📋",
-    }
+    if not st.session_state.waiting_for_user:
+        pending = get_pending_tickets()
+        if pending:
+            # ── Severity filter buttons ──────────────────────────────────────
+            all_count  = len(pending)
+            crit_count = sum(1 for t in pending if t.get("Severity") == "Critical")
+            high_count = sum(1 for t in pending if t.get("Severity") == "High")
+            med_count  = sum(1 for t in pending if t.get("Severity") == "Medium")
+            low_count  = sum(1 for t in pending if t.get("Severity") == "Low")
 
-    # ── Top bar ──────────────────────────────────────────────────────────────
-    hd_col, btn_col = st.columns([5, 1])
-    hd_col.markdown("### 📡 Queue Intelligence View")
-    scan_clicked = btn_col.button("🔍 Scan Queue", type="primary", use_container_width=True)
+            fa, fc, fh, fm, fl = st.columns(5)
+            if fa.button(f"All  {all_count}",       width="stretch",
+                         type="primary" if st.session_state.queue_filter == "All"      else "secondary"):
+                st.session_state.queue_filter = "All";      st.rerun()
+            if fc.button(f"🔴 Critical  {crit_count}", width="stretch",
+                         type="primary" if st.session_state.queue_filter == "Critical" else "secondary"):
+                st.session_state.queue_filter = "Critical"; st.rerun()
+            if fh.button(f"🟠 High  {high_count}",   width="stretch",
+                         type="primary" if st.session_state.queue_filter == "High"     else "secondary"):
+                st.session_state.queue_filter = "High";     st.rerun()
+            if fm.button(f"🟡 Medium  {med_count}",  width="stretch",
+                         type="primary" if st.session_state.queue_filter == "Medium"   else "secondary"):
+                st.session_state.queue_filter = "Medium";   st.rerun()
+            if fl.button(f"🟢 Low  {low_count}",     width="stretch",
+                         type="primary" if st.session_state.queue_filter == "Low"      else "secondary"):
+                st.session_state.queue_filter = "Low";      st.rerun()
 
-    if scan_clicked:
-        with st.spinner("🤖 AI scanning all pending tickets…"):
-            try:
-                st.session_state.queue_scan_results = batch_scan_queue()
-                st.session_state.queue_filter = "All"
-            except Exception as e:
-                st.error(f"Scan failed: {e}")
+            # Apply filter
+            if st.session_state.queue_filter != "All":
+                pending = [t for t in pending if t.get("Severity") == st.session_state.queue_filter]
 
-    if not st.session_state.queue_scan_results:
-        pending_count = len(get_pending_tickets())
-        st.info(f"**{pending_count} tickets** waiting in queue. Click **🔍 Scan Queue** to let the AI triage and group them.")
-    else:
-        results = st.session_state.queue_scan_results
+            active_filter = st.session_state.queue_filter
+            st.markdown(f"#### 📋 Alert Queue — **{len(pending)}** {'pending' if active_filter == 'All' else active_filter + ' alerts'}")
 
-        # ── Severity counts ───────────────────────────────────────────────
-        sev_counts = {"All": len(results)}
-        for r in results:
-            s = r.get("severity", "Low")
-            sev_counts[s] = sev_counts.get(s, 0) + 1
+            # Header
+            h = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 1])
+            for col, lbl in zip(h, ["Severity", "Ticket ID", "Category", "Alert Message", "Node", "Action"]):
+                col.markdown(f"<p style='font-size:11px;font-weight:700;color:#6b7280;"
+                             f"text-transform:uppercase;margin:0;padding-bottom:4px;'>{lbl}</p>",
+                             unsafe_allow_html=True)
+            st.markdown("<hr style='margin:2px 0 6px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
 
-        # ── Layout: left filter | right tickets ───────────────────────────
-        f_col, t_col = st.columns([1, 5])
+            # Rows
+            for t in pending:
+                tid      = t.get("Ticket_ID", "")
+                cat      = t.get("Category", "Unknown")
+                sev      = t.get("Severity", "Medium")
+                msg      = t.get("Alert_Message", "")
+                node     = str(t.get("Affected_Node", "—"))
+                cat_icon = CATEGORY_ICONS.get(cat, "📋")
+                sev_icon = SEV_ICON.get(sev, "⚪")
 
-        with f_col:
-            st.markdown("**Severity Filter**")
-            for sev in ["All", "Critical", "High", "Medium", "Low"]:
-                count = sev_counts.get(sev, 0)
-                icon  = SEV_ICONS.get(sev, "📋")
-                label = f"{icon} {sev}  ({count})" if sev != "All" else f"📋 All  ({count})"
-                is_active = st.session_state.queue_filter == sev
-                if st.button(label, use_container_width=True,
-                             type="primary" if is_active else "secondary",
-                             key=f"filter_{sev}"):
-                    st.session_state.queue_filter = sev
+                c0, c1, c2, c3, c4, c5 = st.columns([1.1, 1.2, 1.1, 3.5, 1.6, 1])
+                c0.markdown(f"**{sev_icon} {sev}**")
+                c1.code(tid, language=None)
+                c2.markdown(f"{cat_icon} {cat}")
+                c3.markdown(f"{msg[:95]}{'…' if len(msg) > 95 else ''}")
+                c4.caption(node[:28])
+                if c5.button("▶", key=f"proc_{tid}", help=f"Process {tid}", type="primary"):
+                    analyze_current_ticket(specific_ticket=t)
                     st.rerun()
 
-        with t_col:
-            # Filter + sort
-            filtered = results if st.session_state.queue_filter == "All" else [
-                r for r in results if r.get("severity") == st.session_state.queue_filter
-            ]
-            filtered = sorted(filtered, key=lambda x: SEV_ORDER.get(x.get("severity","Low"), 3))
-
-            if not filtered:
-                st.info("No tickets match this filter.")
-            else:
-                # Build groups
-                groups: dict = {}
-                for r in filtered:
-                    g = r.get("group", "—")
-                    if g != "—":
-                        groups.setdefault(g, []).append(r["ticket_id"])
-
-                shown_group_banners = set()
-
-                for r in filtered:
-                    tid      = r.get("ticket_id", "")
-                    severity = r.get("severity", "Unknown")
-                    atype    = r.get("alert_type", "Other")
-                    summary  = r.get("summary", "")
-                    group    = r.get("group", "—")
-                    sev_icon = SEV_ICONS.get(severity, "⚪")
-                    a_icon   = ALERT_ICONS.get(atype, "📋")
-
-                    # Group correlation banner (show once per group)
-                    if group != "—" and group not in shown_group_banners:
-                        g_tickets = groups.get(group, [])
-                        if len(g_tickets) > 1:
-                            st.warning(
-                                f"🔗 **Group {group}** — {len(g_tickets)} tickets likely share the same root cause: "
-                                f"`{'`  `'.join(g_tickets)}`"
-                            )
-                        shown_group_banners.add(group)
-
-                    # Ticket row
-                    with st.container(border=True):
-                        c_sev, c_id, c_type, c_summary, c_actions = st.columns([1.2, 1.3, 1.5, 4, 1.5])
-
-                        c_sev.markdown(f"{sev_icon} **{severity}**")
-                        c_id.markdown(f"`{tid}`")
-                        c_type.markdown(f"{a_icon} {atype}")
-                        c_summary.markdown(summary)
-
-                        with c_actions:
-                            qa, qr = st.columns(2)
-                            approve_q = qa.button("✅", key=f"qa_{tid}", use_container_width=True, help="Approve")
-                            reject_q  = qr.button("❌", key=f"qr_{tid}", use_container_width=True, help="Reject")
-
-                        if approve_q or reject_q:
-                            status = "Approved (Queue)" if approve_q else "Rejected"
-                            # Get category from df
-                            row = df[df["Ticket_ID"] == tid]
-                            cat = row.iloc[0]["Category"] if not row.empty else "Unknown"
-                            if approve_q:
-                                alert_msg = row.iloc[0].get("Alert_Message", tid) if not row.empty else tid
-                                glpi_id = _glpi_create_ticket(
-                                    f"[NOC] {alert_msg}",
-                                    f"Ticket ID: {tid}\nCategory: {cat}\nSeverity: {severity}\nApproved from NOC Queue View.",
-                                    severity
-                                )
-                                st.toast(f"GLPI Ticket #{glpi_id} created", icon="🎫")
-                            st.session_state.processed_tickets.append({
-                                "Ticket_ID":        tid,
-                                "Category":         cat,
-                                "Severity":         severity,
-                                "Status":           status,
-                                "Response_Time_Secs": 0,
-                                "SLA_Breached":     False,
-                                "Correlated_With":  group if group != "—" else "",
-                                "Confidence_Score": "",
-                            })
-                            save_processed_tickets(st.session_state.processed_tickets)
-                            st.session_state.queue_scan_results = [
-                                x for x in st.session_state.queue_scan_results if x["ticket_id"] != tid
-                            ]
-                            st.rerun()
+                st.markdown("<hr style='margin:4px 0;border-color:#f3f4f6;'>",
+                            unsafe_allow_html=True)
+        else:
+            st.success("🎉 All tickets processed — queue is clear!")
 
 # ════════════════════════════════════════════════════════════════════════════
-with tab3:
+with tab2:
     st.subheader("📈 NOC/SOC Performance Metrics")
 
     if not st.session_state.processed_tickets:
@@ -1291,7 +1186,7 @@ with tab3:
             )
             fig_cat.update_traces(textposition="inside", textinfo="percent+label")
             fig_cat.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=False, height=300)
-            st.plotly_chart(fig_cat, use_container_width=True)
+            st.plotly_chart(fig_cat, width="stretch")
 
         with ch2:
             st.markdown("**Tickets by Severity**")
@@ -1310,7 +1205,7 @@ with tab3:
                 showlegend=False, margin=dict(t=10, b=10, l=10, r=10),
                 height=300, xaxis_title="", yaxis_title="Count",
             )
-            st.plotly_chart(fig_sev, use_container_width=True)
+            st.plotly_chart(fig_sev, width="stretch")
 
         # ── Row 3: Ticket volume over time + Status breakdown ────────────────
         ch3, ch4 = st.columns(2)
@@ -1332,7 +1227,7 @@ with tab3:
                     margin=dict(t=10, b=10, l=10, r=10), height=300,
                     xaxis_title="Time", yaxis_title="Tickets",
                 )
-                st.plotly_chart(fig_vol, use_container_width=True)
+                st.plotly_chart(fig_vol, width="stretch")
             else:
                 st.info("No timestamp data available.")
 
@@ -1350,7 +1245,7 @@ with tab3:
                     margin=dict(t=10, b=10, l=10, r=10), height=300,
                     xaxis_title="", yaxis_title="Count", legend_title="Status",
                 )
-                st.plotly_chart(fig_grp, use_container_width=True)
+                st.plotly_chart(fig_grp, width="stretch")
 
         # ── Row 4: Confidence score distribution + Top devices ───────────────
         ch5, ch6 = st.columns(2)
@@ -1374,7 +1269,7 @@ with tab3:
                         xaxis_title="Confidence Score (%)", yaxis_title="Tickets",
                         bargap=0.1,
                     )
-                    st.plotly_chart(fig_conf, use_container_width=True)
+                    st.plotly_chart(fig_conf, width="stretch")
                 else:
                     st.info("No confidence scores recorded yet.")
             else:
@@ -1399,7 +1294,7 @@ with tab3:
                     margin=dict(t=10, b=10, l=10, r=10), height=300,
                     xaxis_title="", yaxis_title="Count", legend_title="SLA",
                 )
-                st.plotly_chart(fig_sla, use_container_width=True)
+                st.plotly_chart(fig_sla, width="stretch")
             else:
                 st.info("No SLA data available.")
 
@@ -1434,7 +1329,7 @@ with tab3:
             filtered_df = filtered_df[filtered_df["Status"].isin(f_status)]
 
         st.caption(f"Showing {len(filtered_df)} of {len(metrics_df)} tickets")
-        st.dataframe(filtered_df, use_container_width=True, height=350)
+        st.dataframe(filtered_df, width="stretch", height=350)
 
         st.divider()
 
@@ -1462,7 +1357,7 @@ with tab3:
         gen_col, dl_col, excel_col, _ = st.columns([1.4, 1.4, 1.4, 1.8])
 
         with gen_col:
-            if st.button("🔄 Generate Handoff Report", type="primary", use_container_width=True):
+            if st.button("🔄 Generate Handoff Report", type="primary", width="stretch"):
                 with st.spinner("AI is writing the report… (~15 seconds)"):
                     try:
                         pending    = get_pending_tickets()
@@ -1491,10 +1386,10 @@ with tab3:
                     data      = st.session_state.handoff_doc_buf,
                     file_name = f"NOC_Handoff_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                     mime      = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width = True,
+                    width     = "stretch",
                 )
             else:
-                st.button("📄 Download Handoff (.docx)", disabled=True, use_container_width=True)
+                st.button("📄 Download Handoff (.docx)", disabled=True, width="stretch")
 
         with excel_col:
             excel_buf = generate_excel_report(st.session_state.processed_tickets)
@@ -1503,22 +1398,128 @@ with tab3:
                 data      = excel_buf,
                 file_name = f"NOC_Audit_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime      = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width = True,
+                width     = "stretch",
             )
 
         if st.session_state.handoff_ready:
             st.success("✅ Report ready — click **Download Handoff (.docx)** to save it.")
 
-# ─── Auto-Scan Engine ────────────────────────────────────────────────────────
-if st.session_state.auto_scan_enabled and not st.session_state.waiting_for_user:
-    if st.session_state.ticket_index < len(df):
-        time_since_last = time.time() - st.session_state.last_auto_scan
-        if time_since_last >= AUTO_SCAN_INTERVAL:
-            st.session_state.is_scanning = True
-            st.session_state.last_auto_scan = time.time()
-            st.session_state.last_checked_display = datetime.now().strftime("%H:%M:%S")
-            analyze_current_ticket()
-            st.rerun()
+# ════════════════════════════════════════════════════════════════════════════
+with tab3:
+    st.subheader("🤖 NOC AI Assistant")
+    st.caption("Ask anything about your tickets, shift summary, SLA status, or team routing. Powered by LLaMA 3.3 70B.")
+
+    # ── Suggested questions ───────────────────────────────────────────────────
+    with st.expander("💡 Suggested Questions", expanded=False):
+        suggestions = [
+            "How many critical tickets were processed this shift?",
+            "What is the most common alert category today?",
+            "Summarize the shift in 3 sentences.",
+            "Are there any correlated incidents I should know about?",
+            "Which team received the most tickets?",
+            "What was the average confidence score?",
+            "List all hardware failures.",
+            "Were any SLA timers breached?",
+            "What should the incoming engineer watch for?",
+            "Give me a quick status of all duplicate alerts.",
+        ]
+        cols = st.columns(2)
+        for i, q in enumerate(suggestions):
+            if cols[i % 2].button(q, key=f"suggest_{i}", width="stretch"):
+                st.session_state.chat_history.append({"role": "user", "content": q})
+                st.session_state._chat_pending = True
+                st.rerun()
+
+    st.divider()
+
+    # ── Chat history display ──────────────────────────────────────────────────
+    chat_container = st.container()
+    with chat_container:
+        if not st.session_state.chat_history:
+            st.info("👋 No messages yet. Ask me anything about your NOC shift!")
         else:
-            time.sleep(1)
+            for msg in st.session_state.chat_history:
+                if msg["role"] == "user":
+                    with st.chat_message("user", avatar="👷"):
+                        st.markdown(msg["content"])
+                else:
+                    with st.chat_message("assistant", avatar="🤖"):
+                        st.markdown(msg["content"])
+
+    # ── Input box ─────────────────────────────────────────────────────────────
+    user_input = st.chat_input("Ask the NOC AI Assistant...", key="chatbot_input")
+    if user_input:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state._chat_pending = True
+        st.rerun()
+
+    # ── Process pending message ───────────────────────────────────────────────
+    if st.session_state.get("_chat_pending"):
+        st.session_state._chat_pending = False
+
+        # Build context from processed tickets
+        tickets = st.session_state.processed_tickets
+        last_question = st.session_state.chat_history[-1]["content"]
+
+        if not tickets:
+            context_block = "No tickets have been processed yet in this session."
+        else:
+            # Summarise tickets into a compact context block
+            lines = []
+            for t in tickets:
+                lines.append(
+                    f"  - [{t.get('Ticket_ID','')}] Category={t.get('Category','')} | "
+                    f"Severity={t.get('Severity','')} | Status={t.get('Status','')} | "
+                    f"Node={t.get('Affected_Node','')} | "
+                    f"RootCause={t.get('Root_Cause','')} | "
+                    f"Correlated={t.get('Is_Correlated','')} | "
+                    f"CorrelatedWith={t.get('Correlated_With','')} | "
+                    f"Confidence={t.get('Confidence_Score','')}% | "
+                    f"SLA_Breached={t.get('SLA_Breached','')}"
+                )
+            context_block = "\n".join(lines)
+
+        # Build conversation history for multi-turn context
+        history_str = ""
+        for msg in st.session_state.chat_history[:-1][-6:]:  # last 6 turns
+            role_label = "Engineer" if msg["role"] == "user" else "Assistant"
+            history_str += f"{role_label}: {msg['content']}\n"
+
+        prompt = f"""You are an expert NOC AI Assistant at Emircom, helping a shift engineer understand their current workload.
+
+TODAY'S PROCESSED TICKETS ({len(tickets)} total):
+{context_block}
+
+CONVERSATION HISTORY:
+{history_str}
+
+ENGINEER'S QUESTION:
+{last_question}
+
+Instructions:
+- Answer directly and professionally, like a senior NOC engineer would
+- Use bullet points or short tables when listing multiple items
+- If referencing ticket IDs, always use the format INC-XXXX or MRK-XXXXXX
+- If you don't have enough data to answer, say so honestly
+- Keep responses concise — engineers are busy
+- Do NOT invent data that isn't in the ticket context above
+- You may use markdown formatting (bold, bullets, tables)
+"""
+
+        with st.spinner("🤖 Thinking..."):
+            try:
+                from src.agent_graph import llm
+                response = llm.invoke(prompt)
+                answer = response.content.strip()
+            except Exception as e:
+                answer = f"⚠️ AI error: {e}"
+
+        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+        st.rerun()
+
+    # ── Clear chat button ─────────────────────────────────────────────────────
+    if st.session_state.chat_history:
+        if st.button("🗑️ Clear Chat", width="content"):
+            st.session_state.chat_history = []
             st.rerun()
+
