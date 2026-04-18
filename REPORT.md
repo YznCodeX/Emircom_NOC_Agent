@@ -1,5 +1,5 @@
 # Emircom NOC Agent — Project Report
-**Date:** April 12, 2026  
+**Date:** April 19, 2026  
 **Author:** Yazan  
 **Role:** Final semester student, AI major — Trainee at Emircom (unpaid)  
 **Supervisor:** TBD
@@ -8,9 +8,9 @@
 
 ## Executive Summary
 
-This report documents the development of an AI-powered Network Operations Center (NOC) agent built for Emircom. The system was built from scratch over approximately 3 weeks (March 24 – April 12, 2026) as a final semester project and prototype for supervisor approval.
+This report documents the development of an AI-powered Network Operations Center (NOC) agent built for Emircom. The system was built from scratch over approximately four weeks (March 24 – April 19, 2026) as a final semester project and prototype for supervisor approval.
 
-The agent automates the manual triage work performed by NOC engineers — classifying alerts, identifying root causes, routing tickets to the correct team, and generating shift handoff reports — while keeping engineers in control of all final decisions.
+The agent automates the manual triage work performed by NOC engineers — classifying alerts, identifying root causes, routing tickets to the correct team, matching standard procedures, and generating shift handoff reports — while keeping engineers in control of all final decisions. The system has grown into a true multi-agent architecture: a Supervisor LLM re-classifies every alert independently before routing it to one of five specialist agents, a Runbook Agent retrieves the relevant standard operating procedure, and an Escalation Agent monitors unacknowledged tickets and pages the shift lead when thresholds are breached.
 
 ---
 
@@ -44,11 +44,13 @@ Build an AI agent that handles the repetitive triage work automatically, present
 The brain of the system. Built using **LangGraph** (a graph-based AI orchestration framework) with **LLaMA 3.3 70B** (via Groq API) as the language model.
 
 The agent processes each ticket through a pipeline:
-1. **Triage** — initial classification
-2. **Deduplication** — detects if this alert is a repeat of a recent one
-3. **Specialist Analysis** — routes to one of 5 expert nodes (Network, Security, Hardware, Cloud, Application)
-4. **Correlation** — checks if this ticket shares a root cause with recent tickets
-5. **Human Review** — presents findings to engineer for approval
+1. **Triage** — initial classification and state setup
+2. **Deduplication** — detects if this alert is a repeat of a recent one (SQLite-persisted across restarts)
+3. **Supervisor** *(new)* — a separate LLM independently re-classifies the alert category, overwriting the caller's label if it disagrees; stores its reasoning for transparency
+4. **Specialist Analysis** — routes to one of 5 expert nodes (Network, Security, Hardware, Cloud, Application)
+5. **Runbook Retrieval** *(new)* — LLM searches 13 Emircom runbooks and returns the best matching procedure with a confidence score
+6. **Correlation** — checks if this ticket shares a root cause with recent tickets
+7. **Human Review** — presents all findings to the engineer for approval; GLPI ticket body includes the matched runbook so other teams have a complete playbook
 
 For every ticket, the agent produces:
 - Severity level (Critical / High / Medium / Low)
@@ -70,8 +72,12 @@ The same AI agent powers three separate interfaces:
 ### 2.3 Features Built
 
 #### AI Capabilities
+- **Multi-agent Supervisor** — LLM re-classifies every alert before routing; catches mislabeled alerts from CSV or parser errors; stores routing reason for engineer transparency
 - 5-category specialist analysis (Network, Security, Hardware, Cloud, Application)
-- Deduplication — flags repeated alerts from same root cause
+- **Runbook Agent (RAG)** — LLM retrieves the best matching procedure from 13 Emircom runbooks; displayed in the HITL panel as a 📖 Runbook tab; confidence-scored (threshold 50%)
+- **Escalation Agent** — monitors Critical (>5 min) and High (>15 min) tickets sitting unacknowledged at HITL; fires a pulsing red banner in the UI and sends an escalation email to the NOC Shift Lead; no background threads — hooks into the existing 1-second SLA rerun loop
+- **NOC Chatbot** — streaming conversational interface for engineers; knows the live pending queue; engineers can paste raw logs directly into chat; scope-hardened against off-topic requests and prompt injection
+- Deduplication — flags repeated alerts from same root cause (SQLite-persisted)
 - Cross-ticket correlation — detects when multiple different tickets share one root cause
 - Confidence scoring — agent rates its own certainty with an explanation
 - Persistent memory — agent remembers context across restarts (SQLite)
@@ -110,7 +116,8 @@ The same AI agent powers three separate interfaces:
 |-------|-----------|-----|
 | AI Orchestration | LangGraph | Graph-based state machine — clean flow control |
 | Language Model | LLaMA 3.3 70B (Groq) | Best free-tier option, fast, accurate |
-| Embeddings | BGE-M3 | Ready for RAG when real runbooks available |
+| LLM SDK | Raw Groq SDK (custom shim) | `langchain_groq` deadlocks on Python 3.14; shim is a drop-in replacement |
+| Runbook Retrieval | LLM 1-shot prompt (no vector DB) | No GPU available; LLM reads runbook index and picks best match directly |
 | Original UI | Streamlit | Fastest way to build a working demo |
 | New Frontend | React + Vite | Production-quality, reusable as a product |
 | Backend API | FastAPI | Fast, automatic docs, easy to extend |
@@ -135,6 +142,7 @@ The same AI agent powers three separate interfaces:
 | April 13, 2026 | Cisco DNA Center connector built (`cisco/devnet_connector.py`) — connects to Always-On DevNet sandbox, pulls live device health (CPU, memory, health score), generates alerts automatically |
 | April 15, 2026 | Meraki webhook receiver built (`meraki/webhook_receiver.py` + `meraki/meraki_parser.py`) — FastAPI on port 8003, receives real Meraki alerts, runs full agent pipeline automatically. Tested end-to-end with 3 alert types (WAN down, ARP spoof, AP disconnected) → GLPI tickets created. Streamlit data source selector added (Mock CSV / DNA Center / Both). Analytics dashboard upgraded with Plotly charts (6 KPIs, donut/bar/line charts, confidence histogram, SLA breakdown, filterable audit log). Mock data completely rewritten — 50 unique telecom-grade alerts with multi-line syslog logs, Emircom device naming, cell tower and VoIP alerts. Deduplication engine upgraded to SQLite persistence — survives restarts, remembers last 10 alerts across sessions. Assigned group now set at ticket creation time — emails show correct group immediately. |
 | **April 16:** | Streamlit UI overhaul — OpManager-style queue (horizontal rows, always visible), per-row ▶ Process button (pick any ticket from queue), ← Back to Queue button (no page restart), severity filters in left panel, live SLA timer during HITL review, auto-scan removed for full engineer control, int64 + JSON recovery bug fixes. GitHub repo pushed to YznCodeX/Emircom_NOC_Agent (main branch). |
+| **April 18:** | **Multi-agent Supervisor node** — LLM re-classifies every alert before routing; verified override of mislabeled alerts (92% confidence). **NOC Chatbot** — streaming output, sliding window memory, live queue context, Paste Logs, scope guardrails (two-pass hardened against injection and role-play). **Python 3.14 fix** — replaced `langchain_groq` with raw Groq SDK shim (`_LazyLLM`). **Runbook Agent (RAG)** — `rag_core.py` rewritten (no GPU); 13 realistic Emircom runbooks written; `runbook_node` wired into graph; 📖 Runbook tab added to HITL panel; verified match rates: OSPF 98%, UPS 95%, DB timeout 95%, PSU 92%. **Escalation Agent** — `escalation_agent.py` built; Critical >5 min and High >15 min trigger pulsing red banner + escalation email to Shift Lead; live-tested on Cell Tower ticket INC-3812. **GLPI enrichment** — GLPI ticket body now includes matched runbook + Supervisor routing reason so other teams have a full playbook. |
 
 ---
 
@@ -142,26 +150,33 @@ The same AI agent powers three separate interfaces:
 
 ### What Works Today
 Everything listed in Section 2 is functional and has been tested. The system can:
-- Accept mock NOC tickets
-- Analyze them with AI across all 5 categories
-- Present findings to an engineer for review
-- Create GLPI tickets on approval with correct team, priority, and SLA
-- Generate shift handoff reports and export to Excel
+- Accept mock NOC tickets and route them through a full multi-agent pipeline
+- Re-classify alerts using an independent Supervisor LLM before routing
+- Analyze alerts with AI across all 5 specialist categories
+- Retrieve the matching standard operating procedure from 13 runbooks
+- Present all findings to an engineer in a structured HITL panel (4 tabs: Summary, Logs, Runbook, Email)
+- Escalate unacknowledged Critical/High tickets automatically — banner in UI + email to Shift Lead
+- Create GLPI tickets on approval with correct team, priority, SLA, runbook, and routing reason
+- Generate shift handoff reports and export to Excel and Word
+- Answer engineer questions via a streaming NOC Chatbot with live queue context
 - Notify engineers when GLPI tickets need review
 
 ### What Is Pending
 | Item | Reason Pending |
 |------|---------------|
-| Multi-agent refactor | Planned Week 2 |
-| Chatbot interface | Planned Week 2 — pending queue context, Paste Logs, response streaming |
-| GLPI SLA escalation rules | Not yet configured |
-| RAG with runbooks | No real Emircom runbooks available — will write realistic SOPs |
+| Real Emircom runbooks | Supervisor needs to provide SOPs — drop JSON files in `data/emircom_runbooks/`, no code changes needed |
+| GLPI SLA escalation rules | Not yet configured in GLPI rules engine |
 | Real Remedy connection | Waiting for IT department API access |
 | Microsoft Teams/Email integration | Waiting for IT department authorization |
 
 ### Recently Completed
 | Item | Date |
 |------|------|
+| Multi-agent Supervisor node — independent alert re-classification | April 18, 2026 |
+| NOC Chatbot — streaming, queue context, Paste Logs, scope guardrails | April 18, 2026 |
+| Runbook Agent (RAG) — 13 runbooks, LLM retrieval, HITL Runbook tab | April 18, 2026 |
+| Escalation Agent — pulsing banner + email to Shift Lead for overdue HITL tickets | April 18, 2026 |
+| GLPI ticket enrichment — runbook + supervisor reason in ticket body | April 18, 2026 |
 | GitHub repo pushed (YznCodeX/Emircom_NOC_Agent, main branch) | April 16, 2026 |
 | Streamlit queue redesigned — OpManager-style horizontal rows, always visible, per-row ▶ Process button | April 16, 2026 |
 | ← Back to Queue button in HITL panel (no page restart) | April 16, 2026 |
@@ -174,37 +189,32 @@ Everything listed in Section 2 is functional and has been tested. The system can
 
 | Challenge | Solution |
 |-----------|---------|
-| No access to real Emircom data | Built 40+ realistic mock tickets covering all incident types |
+| No access to real Emircom data | Built 50 unique telecom-grade mock tickets with real syslog logs covering all incident types |
 | No Remedy API access | Used GLPI (open-source ITSM) as a fully functional substitute |
 | Groq API rate limits on free tier | Added graceful error handling — clean message posted to ticket, retried next cycle |
 | Double-processing tickets | `has_real_ai_comment()` check prevents re-analysis |
 | GLPI only watching "New" tickets | Updated to also watch "Processing" (manually created tickets default to this status) |
 | Agent import broken after code reorganization | Fixed with `sys.path.insert` to locate `src/` from any subfolder |
-| Architecture confusion (GLPI vs React flow) | Clarified: CSV → Agent → Approve → GLPI ticket. React and GLPI are separate interfaces, same agent |
+| `langchain_groq` hangs on Python 3.14 | Replaced with raw Groq SDK shim (`_LazyLLM`) — exposes the same `.invoke()` interface, zero deadlocks |
+| RAG with no GPU and no vector DB | Replaced embedding-based retrieval with a single LLM prompt that reads the runbook index and picks the best match directly — faster, simpler, equally accurate |
+| Escalation without background threads | Streamlit is single-threaded; escalation check piggybacks on the existing 1-second SLA rerun loop — no new threads or dependencies |
+| Engineers sending wrong emails at 3am | Escalation email fires only once per ticket (`escalation_sent` session state flag), regardless of how many reruns happen after the threshold |
 
 ---
 
 ## 7. Next Steps
 
-### Week 2 (Next)
-1. Multi-agent refactor — Supervisor agent + specialized sub-agents
-2. Chatbot improvements — pending queue context, Paste Logs, response streaming
-
-### Week 3
-3. React analytics tab
-4. RAG runbooks — write realistic Emircom SOPs, wire into agent
-5. GLPI SLA escalation rules
-
-### Week 4 (Buffer)
-6. Supervisor presentation prep and demo rehearsal
-7. Written report formatting (ST04 requirements)
+### Immediate (Presentation Prep)
+1. Supervisor presentation — 12-slide deck ready to finalize
+2. Demo rehearsal — walk through full pipeline: alert in → Supervisor routes → Runbook matched → Escalation fires → GLPI ticket created with runbook
+3. Written report formatting (ST04/COOP requirements)
 
 ### After Supervisor Approval
-8. Connect to real alert feed from Emircom monitoring systems
-9. Integrate with real Remedy API
-10. Load real Emircom runbooks into RAG system
-11. Request Microsoft 365 API access for Teams/email integration
-12. Add authentication and role-based access control
+4. Connect to real alert feed from Emircom monitoring systems (replace mock CSV)
+5. Integrate with real Remedy API (replace GLPI simulation)
+6. Load real Emircom runbooks into `data/emircom_runbooks/` — no code changes needed, RAG is already wired
+7. Request Microsoft 365 API access for Teams/email maintenance window detection
+8. Add authentication and role-based access control (login system for engineers)
 
 ---
 
@@ -231,13 +241,14 @@ Everything listed in Section 2 is functional and has been tested. The system can
 
 ## 9. Notes for Next Session
 
-- Email pipeline fully working — no manual steps needed, emails arrive automatically within ~1 minute
-- GLPI categories (Network, Security, Hardware, Cloud, Application) created and auto-assigned via API
-- React analytics tab is the next major frontend feature to build
-- Supervisor presentation prep should start soon
-- Full technical documentation is in `PROJECT_REPORT.md`
+- All major AI agents are now live: Supervisor, Runbook, Escalation, Chatbot
+- Real runbooks can be dropped into `data/emircom_runbooks/` as JSON files — retrieval is already wired, no code needed
+- Escalation emails go to `SHIFT_LEAD_EMAIL` env var (defaults to same Gmail box if not set)
+- `langchain_groq` must NOT be used — it deadlocks on Python 3.14; use `_LazyLLM` shim from `agent_graph.py`
+- Full technical documentation is in `PROJECT_REPORT.md` (v1.4)
+- GitHub repo: YznCodeX/Emircom_NOC_Agent (main branch, all commits pushed)
 
 ---
 
 *Report will be updated as the project progresses.*  
-*Last updated: April 16, 2026*
+*Last updated: April 19, 2026*
