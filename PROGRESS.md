@@ -5,10 +5,10 @@ An AI-powered NOC (Network Operations Center) agent built to automate what the N
 
 **Stack:**
 - `LangGraph` — agent orchestration (graph-based state machine)
-- `Groq + LLaMA 3.3 70B` — the AI brain (via `langchain_groq`)
+- `Groq + LLaMA 3.3 70B` — the AI brain (raw Groq SDK shim; `langchain_groq` hangs on Python 3.14)
 - `Streamlit` — the UI (NOC Command Center dashboard)
 - `SqliteSaver` — persistent agent state
-- `BGE-M3` embeddings in `rag_core.py` — ready but not wired in yet (waiting for real runbook data)
+- `src/rag_core.py` — LLM-based runbook retrieval over 13 JSON runbooks (wired and live)
 
 ---
 
@@ -21,11 +21,15 @@ Incoming Ticket
       ↓
  Deduplication ──── (duplicate?) ──→ Drop Node → HITL (approve drop)
       ↓
- Network/Security Ops (LLM Analysis)
+ Supervisor Node  ← LLM re-classifies category (overwrites caller's label)
+      ↓
+ Network/Security/Hardware/Cloud/Application Ops (LLM specialist analysis)
+      ↓
+ Runbook Node  ← LLM matches alert to 1 of 13 runbooks
       ↓
  Correlation Engine (root cause linking)
       ↓
- Remedy Node → HITL (approve/reject)
+ Remedy Node → HITL (approve/reject) → GLPI ticket (with runbook + supervisor reason)
       ↓
    END
 ```
@@ -144,6 +148,35 @@ Incoming Ticket
 
 ---
 
+### ✅ Python 3.14 / langchain_groq Fix — Raw Groq SDK Shim
+**File:** `src/agent_graph.py`
+- `langchain_groq` deadlocked on Python 3.14.3 (Pydantic V1 incompatibility)
+- Replaced with `_LazyLLM` shim — wraps raw `groq.Groq` client
+- Exposes `.invoke(prompt)` → returns object with `.content` attribute (drop-in replacement)
+- All nodes, chatbot, and RAG retrieval use the same shim
+
+### ✅ Multi-agent Supervisor Node
+**File:** `src/agent_graph.py`
+- Added `supervisor_node()` — LLM reads `description` + `logs`, classifies category independently
+- Overwrites caller-provided `state["category"]` with its own classification
+- Stores classification reason in `state["supervisor_reason"]`
+- Added `supervisor_reason: str` to `AgentState`
+- Changed `route_after_dedup()` to route all unique tickets to `supervisor` instead of directly to specialists
+- Added `route_after_supervisor()` — reads LLM-set category, routes to correct specialist node
+- Verified: Network alert mislabeled as Application → Supervisor overrides to Network (92% confidence)
+- All 3 callers (Streamlit, GLPI agent, Meraki webhook) unchanged
+
+### ✅ NOC Chatbot
+**File:** `streamlit/app.py`
+- New Tab 4 — full streaming chat interface for NOC engineers
+- Streaming via `st.write_stream` — token-by-token output
+- Sliding window memory — last 10 conversation turns kept in system context
+- Paste Logs button — populates chat input with last raw log from pending queue
+- System prompt includes live pending queue (ticket IDs, categories, descriptions)
+- Scope guardrails: blocks off-topic requests, prompt injection, role-play jailbreaks
+- Two-pass hardening: v1 blocked haiku attempts, v2 blocked persona override attacks
+- Live-tested: streaming, queue retrieval, log paste, cascade analysis, Arabic, hallucination probe, injection resistance
+
 ### ✅ #11 — Queue View (OpManager-style Ticket Board)
 **File:** `app.py`
 - Added 3rd tab: **📡 Queue View** alongside existing Live Operations and Analytics tabs
@@ -164,15 +197,65 @@ Incoming Ticket
 
 ---
 
+### ✅ Runbook Agent (RAG)
+**Files:** `src/rag_core.py` (full rewrite), `src/agent_graph.py`, `data/emircom_runbooks/` (13 new JSON files), `streamlit/app.py`
+
+**rag_core.py:**
+- Old version used HuggingFace BGE-M3 on CUDA — not compatible with Python 3.14, no GPU available
+- New version: LLM-based retrieval — builds a one-line index of all runbook IDs/titles/triggers, sends 1-shot prompt to LLM, gets back `{match_index, confidence, reason}` JSON
+- Confidence threshold: 50% — below this returns "" (no match shown)
+- Verified match rates: OSPF → 98%, UPS → 95%, DB timeout → 95%, PSU failure → 92%
+
+**13 runbooks written (fake Emircom SOPs):**
+- Network: RB-NET-001 (OSPF), RB-NET-002 (BGP), RB-NET-003 (Interface Flapping), RB-NET-004 (MPLS), RB-NET-005 (Cell Tower/BTS), RB-NET-006 (High Bandwidth)
+- Hardware: RB-HW-001 (UPS Battery), RB-HW-002 (High CPU/Temperature)
+- Security: RB-SEC-001 (IDS Alert), RB-SEC-002 (Brute Force)
+- Cloud: RB-CLD-001 (VM/Container Crash)
+- Application: RB-APP-001 (DB Timeout), RB-APP-002 (Web Service 502)
+
+**agent_graph.py:**
+- Added `runbook_match: str` to `AgentState`
+- Added `runbook_node()` — calls `find_matching_runbook()` with description, logs, category, llm
+- Added `workflow.add_node("runbook", runbook_node)`
+- All 5 specialist nodes now route to `runbook` before `correlation`
+
+**app.py:**
+- HITL panel now has 4 tabs: Summary, Raw Logs, 📖 Runbook, Email Template
+- Runbook tab renders matched procedure in markdown; shows confidence %, steps, resolution, escalation path
+- Supervisor routing reason shown as caption below runbook
+
+### ✅ Escalation Agent
+**Files:** `src/escalation_agent.py` (new file), `streamlit/app.py`
+
+**escalation_agent.py:**
+- `check_escalation(severity, sla_start_time, already_escalated) → dict` — computes elapsed vs threshold
+- `send_escalation_email(...)` — branded HTML email via Gmail SMTP (port 587, STARTTLS)
+- Thresholds: Critical → 5 min, High → 15 min, Medium → 45 min (Medium: banner only, no email)
+- Uses same `GMAIL_USER` / `GMAIL_APP_PASSWORD` env vars as existing email sender
+
+**app.py:**
+- Escalation check runs on every 1s SLA-timer rerun (no background threads)
+- `escalation_sent` session state flag → email fires exactly once per ticket
+- Flag reset in 3 places: new ticket start, Back to Queue, _save_and_advance()
+- Pulsing red CSS banner displayed when threshold breached
+- Quieter dark-red "already escalated" reminder shown on subsequent reruns
+- Live-tested: banner appeared within 10s on Critical Cell Tower ticket INC-3812
+
+### ✅ GLPI Ticket Enrichment (Runbook + Supervisor Reason)
+**File:** `src/agent_graph.py` — `remedy_node()`
+- GLPI ticket body now appends matched runbook procedure + Supervisor routing reason
+- `_plain()` helper strips markdown bold/italic before writing to GLPI (plain-text field)
+- Other teams (field engineers, security, etc.) see the complete SOPwhen they open the ticket in GLPI
+- No changes to GLPI API calls — enrichment is purely in the `description` field
+
+---
+
 ## Enhancements — Remaining (In Priority Order)
 
-### 🔲 #6 — Real-time Alert Feed (Auto-refresh)
-Instead of manually clicking "Start NOC Auto-Scan", the dashboard auto-refreshes every N seconds to check for new tickets. Makes it feel live instead of a demo.
-
-### 🔲 #9 — Trend Analysis
+### 🔲 Trend Analysis
 "This IP has had 12 incidents in the last 7 days." Needs historical data to be meaningful — better to build after getting real data.
 
-### 🔲 #10 — Network Topology Map
+### 🔲 Network Topology Map
 Visual map showing which nodes are affected. Most complex to build, needs real infrastructure data. Save for after supervisor approval.
 
 ---
@@ -181,53 +264,47 @@ Visual map showing which nodes are affected. Most complex to build, needs real i
 
 These were discussed but intentionally NOT built yet — waiting for real data and system access:
 
+### 🔮 Real Runbooks
+`data/emircom_runbooks/` is ready with 13 fake SOPs wired to the LLM retrieval engine. When real Emircom runbooks are provided, drop JSON files in — no code changes needed.
+
 ### 🔮 Maintenance Window / Suppression Rules
 When a planned maintenance, site relocation, or known outage is scheduled, alerts from affected devices should be automatically suppressed (no SLA, no escalation, logged as "Planned Maintenance").
-
-**Planned approach:**
-- Phase 1 (now): Manual suppression rule entry in UI
-- Phase 2 (after approval): Agent reads Microsoft Teams messages and emails to auto-create suppression rules
-- Phase 3 (ideal): Full Microsoft 365 API integration
 
 ### 🔮 Real Email & Teams Integration (Microsoft 365 API)
 Agent reads maintenance notifications from Teams channels and emails, automatically creating suppression rules. Requires IT department approval and Microsoft 365 API credentials.
 
 ### 🔮 Real Remedy API Integration
-Currently simulated. Replace with actual Remedy API calls to create tickets, assign teams, and track status. Requires Remedy API access from Emircom IT.
+Currently simulated with GLPI. Replace with actual Remedy API calls to create tickets, assign teams, and track status. Requires Remedy API access from Emircom IT.
 
-### 🔮 RAG with Real Runbooks
-`src/rag_core.py` is ready with BGE-M3 embeddings. `data/emircom_runbooks` is empty. When real runbook documents are available, wire the RAG into the agent so it can reference standard operating procedures during analysis.
+### 🔮 Enhanced Escalation
+Escalation Agent is live for HITL overdue tickets. Next level: escalate via Teams message + auto-advance ticket if shift lead doesn't respond within a second threshold.
 
-### 🔮 24/7 Auto-polling Mode
-Replace the manual "Start NOC Auto-Scan" button with continuous auto-polling. Agent watches for new tickets and processes them automatically. Architecture depends on where real tickets come from (API, database, file feed, etc.).
-
-### 🔮 Auto-escalation Timer
-If a Critical ticket sits unapproved in HITL for X minutes, automatically escalate it — page the shift lead, send a Teams message, etc.
-
-### 🔮 Fake Email + Fake Teams UI (Demo Enhancement)
-For a more impressive demo: build a simulated inbox and Teams channel UI inside the app, where maintenance notifications appear as fake messages. The agent reads these and auto-creates suppression rules. Supervisor can see the full workflow visually.
+### 🔮 Knowledge Base Agent
+Learns from past approved tickets. When new alert arrives, checks if similar ticket existed: "Similar to INC-3033 last shift — here's what the engineer did."
 
 ---
 
 ## Important Technical Notes
 
 - **Python version:** 3.14 (causes Pydantic V1 warnings — harmless, just warnings)
-- **Groq API:** Using `llama-3.3-70b-versatile` at temperature 0.1
+- **Groq SDK:** Using raw `groq.Groq` via `_LazyLLM` shim — `langchain_groq` deadlocks on Python 3.14
+- **Groq model:** `llama-3.3-70b-versatile` at temperature 0.1
 - **LangGraph interrupts:** `interrupt_before=["remedy", "drop"]` — pauses before both actions
 - **SqliteSaver connection:** `check_same_thread=False` required for Streamlit
 - **CSV quirk:** Always quote fields with commas in `mock_tickets.csv`
-- **Streamlit deprecation warning:** `use_container_width` → use `width='stretch'` or `width='content'`
+- **Escalation emails:** `GMAIL_APP_PASSWORD` env var required; `SHIFT_LEAD_EMAIL` defaults to same Gmail box if not set
+- **Runbook matching:** LLM 1-shot retrieval; confidence < 50% returns ""; real runbooks → drop JSON into `data/emircom_runbooks/`
 
 ---
 
 ## Data Files
 | File | Purpose |
 |---|---|
-| `data/mock_tickets.csv` | 4 mock tickets for demo (INC-1001 to INC-1004) |
-| `data/noc_memory.db` | SqliteSaver agent state (LangGraph checkpoints) |
+| `data/mock_tickets.csv` | 50 unique telecom-grade alerts with syslog logs |
+| `data/noc_memory.db` | SqliteSaver agent state (LangGraph checkpoints + dedup table) |
 | `data/processed_tickets.json` | Audit log of all processed tickets |
 | `data/session_state.json` | Persists ticket_index across restarts |
-| `data/emircom_runbooks` | Empty — waiting for real runbook data |
+| `data/emircom_runbooks/` | 13 JSON runbooks — LLM-based retrieval wired and live |
 
 ---
 

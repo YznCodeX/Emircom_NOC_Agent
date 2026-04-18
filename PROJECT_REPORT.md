@@ -1,7 +1,7 @@
 # Emircom NOC Agent — Technical Documentation
 
-**Version:** 1.3  
-**Date:** April 16, 2026  
+**Version:** 1.4  
+**Date:** April 18, 2026  
 **Author:** Yazan  
 **Status:** Prototype — pending supervisor approval for production data access
 
@@ -86,7 +86,8 @@ The agent never takes final action autonomously. Every analyzed ticket is presen
           │     src/agent_graph.py        │
           │   LangGraph AI Agent          │
           │                               │
-          │  Triage → Dedup → Analysis    │
+          │  Triage → Dedup → Supervisor  │
+          │  → Specialist → Runbook       │
           │  → Correlation → HITL         │
           └───────────────┬───────────────┘
                           │
@@ -106,8 +107,10 @@ The agent never takes final action autonomously. Every analyzed ticket is presen
 
 | Component | Role |
 |-----------|------|
-| `src/agent_graph.py` | The AI brain — shared by all interfaces |
-| `streamlit/app.py` | Original full-featured NOC dashboard |
+| `src/agent_graph.py` | The AI brain — shared by all interfaces; includes Supervisor and Runbook nodes |
+| `src/escalation_agent.py` | Escalation monitor — detects overdue HITL tickets, fires email + UI banner |
+| `src/rag_core.py` | Runbook retrieval — LLM-based match over 13 JSON runbooks |
+| `streamlit/app.py` | Original full-featured NOC dashboard (now includes Chatbot, Runbook tab, Escalation banner) |
 | `react/backend/main.py` | REST API connecting React to the agent and GLPI |
 | `frontend/src/App.jsx` | React dashboard — modern UI |
 | `glpi/glpi_agent.py` | Background worker — polls GLPI and runs AI analysis |
@@ -123,7 +126,8 @@ Emircom_NOC_Agent/
 │
 ├── src/
 │   ├── agent_graph.py          # Core AI agent (LangGraph state machine)
-│   └── rag_core.py             # RAG module (BGE-M3 embeddings — ready, not wired)
+│   ├── rag_core.py             # Runbook retrieval (LLM-based, wired and live)
+│   └── escalation_agent.py     # Escalation monitor — overdue HITL detection + email
 │
 ├── streamlit/
 │   └── app.py                  # Full-featured Streamlit NOC dashboard
@@ -150,7 +154,7 @@ Emircom_NOC_Agent/
 │   ├── processed_tickets.json  # Audit log of all approved/rejected tickets
 │   ├── noc_memory.db           # SqliteSaver — LangGraph agent memory
 │   ├── session_state.json      # Persists ticket index across restarts
-│   └── emircom_runbooks/       # Empty — waiting for real runbook data
+│   └── emircom_runbooks/       # 13 JSON runbooks (7 Network, 2 Hardware, 2 Security, 1 Cloud, 1 Application)
 │
 ├── .env                        # API keys (GROQ_API_KEY, GLPI tokens)
 ├── requirements.txt            # Python dependencies
@@ -181,6 +185,8 @@ class AgentState(TypedDict):
     is_correlated: bool
     correlated_with: str    # Ticket ID of correlated ticket
     confidence_score: int   # 0-100
+    supervisor_reason: str  # Why the Supervisor node chose this category
+    runbook_match: str      # Formatted markdown from matching runbook (or "")
 ```
 
 ### Agent Graph Flow
@@ -189,29 +195,36 @@ class AgentState(TypedDict):
 START
   │
   ▼
-triage_node          ← Classifies category and initial severity
+triage_node          ← Logs entry, initialises state
   │
   ▼
-dedup_node           ← Checks if this ticket is a duplicate of a recent one
+dedup_node           ← Checks if this ticket is a duplicate (SQLite + LLM)
   │
   ├── (duplicate) → drop_node → HITL interrupt (approve drop or keep)
   │
-  └── (unique) → route by category
-                    │
-                    ├── network_ops_node
-                    ├── security_ops_node
-                    ├── hardware_ops_node
-                    ├── cloud_ops_node
-                    └── application_ops_node
-                              │
-                              ▼
-                    correlation_node     ← Checks if root cause matches recent tickets
-                              │
-                              ▼
-                    remedy_node          ← HITL interrupt (approve → create ticket)
-                              │
-                              ▼
-                            END
+  └── (unique) → supervisor_node   ← NEW — LLM re-classifies category independently
+                      │                       (overwrites caller-provided category)
+                      │                       stores reason in supervisor_reason
+                      ▼
+                  route by LLM-chosen category
+                      │
+                      ├── network_ops_node
+                      ├── security_ops_node
+                      ├── hardware_ops_node
+                      ├── cloud_ops_node
+                      └── application_ops_node
+                                │
+                                ▼
+                        runbook_node         ← NEW — LLM retrieval over 13 runbooks
+                                │                     stores match in runbook_match
+                                ▼
+                        correlation_node     ← Checks if root cause matches recent tickets
+                                │
+                                ▼
+                        remedy_node          ← HITL interrupt (approve → create GLPI ticket)
+                                │                GLPI body includes runbook + supervisor reason
+                                ▼
+                              END
 ```
 
 ### LLM Analysis Output (JSON)
@@ -270,7 +283,7 @@ app = graph.compile(
 
 **File:** `streamlit/app.py`  
 **Port:** 8501  
-**Lines:** ~1288
+**Lines:** ~1666
 
 ### Tabs
 
@@ -278,12 +291,14 @@ app = graph.compile(
 - **Stats strip** — queue size, processed count, approved, rejected, duplicates, SLA breaches
 - **Upcoming queue** — next 3 tickets preview
 - **HITL Panel** — full ticket review interface:
-  - Pipeline visualization (Triage → Dedup → Analysis → Correlation → HITL)
-  - Left column: Summary tab, Raw Logs tab, Email Template tab
+  - Pipeline visualization (Triage → Dedup → Supervisor → Analysis → Runbook → Correlation → HITL)
+  - Left column: **4 tabs** — Summary, Raw Logs, 📖 Runbook, Email Template
+    - **Runbook tab** — matched procedure from `data/emircom_runbooks/` with confidence %, diagnosis steps, resolution, escalation path; shows supervisor routing reason as caption
   - Right column: SLA Timer, Confidence Score, team routing info, Approve/Reject buttons
   - Dedup warning banner (orange)
   - Correlation warning banner (orange)
   - On-call escalation badge for Critical/High
+  - **Escalation banner** — pulsing red CSS animation when Critical ticket exceeds 5 min at HITL (or High > 15 min); fires escalation email to Shift Lead exactly once per ticket (`escalation_sent` session state flag)
 
 #### Tab 2: Queue View
 - Batch AI triage of all pending tickets
@@ -300,6 +315,15 @@ app = graph.compile(
   - LLM-generated report (shift narrative, critical incidents, watch list)
   - **Excel export** (3 sheets: Audit Log, Summary, By Category)
   - **Word export** (.docx with cover block, metrics table, AI incident summaries, watch list)
+
+#### Tab 4: NOC Chatbot
+- Full conversational interface for NOC engineers
+- **Streaming responses** via `st.write_stream` — token-by-token display
+- **Sliding window memory** — last 10 conversation turns in system context
+- **Paste Logs** button — populates input with last raw log from pending queue
+- **Pending queue context** — system prompt includes all pending ticket IDs, categories, and descriptions so chatbot can answer "what's in the queue right now"
+- **Scope guardrails** — blocks off-topic requests, prompt injection, role-play jailbreaks; two-pass hardened system prompt (v1 blocked haiku; v2 blocked persona override)
+- Uses raw Groq SDK shim (`_LazyLLM`) — langchain_groq deadlocks on Python 3.14
 
 ### SLA Thresholds
 
@@ -525,7 +549,29 @@ Audit log. Each entry:
 SQLite database used by LangGraph SqliteSaver. Stores full agent state per thread (ticket). Enables deduplication and correlation across sessions.
 
 ### `data/emircom_runbooks/`
-Empty directory. Intended for real Emircom runbook documents (PDF/Word). When populated, `src/rag_core.py` will index them using BGE-M3 embeddings so the agent can reference SOPs during analysis.
+Contains 13 JSON runbooks covering all 5 alert categories. These are realistic fake Emircom SOPs used until real runbooks are provided.
+
+| Runbook ID | Title | Category |
+|------------|-------|----------|
+| RB-NET-001 | OSPF Adjacency Loss | Network |
+| RB-NET-002 | BGP Session Drop | Network |
+| RB-NET-003 | Interface Flapping | Network |
+| RB-NET-004 | MPLS Tunnel Failure | Network |
+| RB-NET-005 | Cell Tower / BTS Offline | Network |
+| RB-NET-006 | High Bandwidth Utilization | Network |
+| RB-HW-001 | UPS Battery Failure | Hardware |
+| RB-HW-002 | High CPU / Temperature | Hardware |
+| RB-SEC-001 | IDS Intrusion Alert | Security |
+| RB-SEC-002 | Brute Force Attack | Security |
+| RB-CLD-001 | VM / Container Crash | Cloud |
+| RB-APP-001 | Database Timeout | Application |
+| RB-APP-002 | Web Service Failure (502) | Application |
+
+Each runbook JSON has: `id`, `title`, `category`, `alert_triggers`, `symptoms`, `steps`, `resolution`, `escalation`, `estimated_resolution_time`, `affected_services`, `reference`.
+
+`src/rag_core.py` retrieves the best match using a single LLM prompt (no vector DB, no GPU). Confidence threshold: 50%. Verified match rates: OSPF → 98%, UPS → 95%, DB timeout → 95%, PSU failure → 92%.
+
+When real Emircom runbooks are available, drop the actual JSON files into this directory — no code changes needed.
 
 ---
 
@@ -783,15 +829,17 @@ Returns a multi-sheet Excel file for download.
 | Severity filter buttons in left-side panel (st.columns([1,5]) layout) | Streamlit |
 | Live SLA timer ticking during HITL review (1-second rerun loop, only active when waiting_for_user) | Streamlit |
 | Auto-scan removed — engineer controls flow manually via Scan Next or per-row Process button | Streamlit |
+| **Multi-agent Supervisor node** — LLM re-classifies every alert before routing; overwrites caller's category; stores reason in `supervisor_reason`; verified: Network alert mislabeled as Application → Supervisor overrides to Network (92% confidence) | All |
+| **NOC Chatbot** — streaming (st.write_stream), sliding window memory (last 10 turns), pending queue context, Paste Logs, scope guardrails (injection + role-play resistant) | Streamlit |
+| **Runbook Agent (RAG)** — LLM-based retrieval over 13 fake Emircom runbooks; no GPU/embeddings; confidence-thresholded; displayed as 📖 Runbook tab in HITL panel | Streamlit |
+| **Escalation Agent** — monitors Critical (>5 min) and High (>15 min) tickets at HITL; pulsing red banner in UI; escalation email to Shift Lead via Gmail SMTP; no background threads — hooks into 1s SLA rerun loop | Streamlit |
+| **GLPI ticket enrichment** — GLPI ticket body now includes matched runbook procedure + Supervisor routing reason; other teams get complete context when they open the ticket | GLPI |
 
 ### Pending 🔲
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Multi-agent refactor | High | Supervisor + specialized agents + Notification agent |
-| Chatbot interface | High | Natural language queries over tickets and GLPI |
 | GLPI SLA escalation rules | Medium | Rules engine in GLPI |
-| RAG with runbooks | Medium | Will write realistic Emircom SOPs |
 | Real Remedy integration | Future | Needs IT department API access |
 | Microsoft Teams/Email integration | Future | For maintenance window detection |
 
@@ -806,7 +854,8 @@ Returns a multi-sheet Excel file for download.
 | No real Remedy integration | GLPI used as substitute | GLPI is functionally equivalent for prototype |
 | LLM analysis quality depends on log detail | Vague logs → lower confidence score | Real logs from monitoring systems will improve this |
 | Python 3.14 Pydantic V1 warnings | Harmless console warnings | Upgrade Pydantic to V2 in future |
-| RAG not wired in | Agent answers from training knowledge only | Wire `rag_core.py` when runbooks are available |
+| Runbooks are fake/simulated | Runbook tab shows realistic but not real Emircom SOPs | Drop real JSON runbooks into `data/emircom_runbooks/` when supervisor provides them |
+| Meraki sandbox credentials changed | Cannot connect to real Meraki dashboard | Use `test_webhook.py` to simulate Meraki webhook alerts |
 | Single-user (no auth) | Anyone with URL can access | Add authentication before production use |
 | No auto-scan — engineer must manually trigger each ticket (intentional design for HITL control) | Engineer must click Scan Next or ▶ Process per ticket | Intentional — full engineer control over flow |
 
@@ -821,19 +870,18 @@ Returns a multi-sheet Excel file for download.
    - Replace `mock_tickets.csv` with live data stream
    - Connect to real Remedy API
 
-2. **RAG with real runbooks**
-   - Load Emircom standard operating procedures into `data/emircom_runbooks/`
-   - `rag_core.py` indexes them with BGE-M3 embeddings
-   - Agent references SOPs during analysis → higher accuracy and confidence
+2. **Real runbooks**
+   - Drop real Emircom SOPs into `data/emircom_runbooks/` as JSON files — `rag_core.py` picks them up automatically, no code changes needed
+   - Runbook Agent already wired and live (LLM-based retrieval, 13 fake runbooks confirmed working)
 
 3. **Microsoft 365 integration**
    - Read maintenance notifications from Teams channels
    - Read planned outage emails
    - Auto-create suppression rules (no alerts during planned maintenance)
 
-4. **Auto-escalation**
-   - If Critical ticket sits in Pending > 10 minutes, page the shift lead via Teams
-   - SLA breach notifications to management
+4. **Enhanced escalation**
+   - Escalation Agent already live for HITL overdue tickets (Critical > 5 min, High > 15 min → email + banner)
+   - Next: escalate via Teams message + auto-advance ticket if shift lead is unreachable
 
 5. **24/7 Auto-polling mode**
    - Replace manual scan button with continuous monitoring
@@ -861,6 +909,14 @@ Returns a multi-sheet Excel file for download.
 
 ## 15. Changelog
 
+**April 18–19, 2026:**
+- **Multi-agent Supervisor node** added to `src/agent_graph.py` — LLM re-classifies every alert before routing to specialist; `supervisor_reason` field added to `AgentState`; verified mis-label override (Network alert sent as Application → Supervisor corrects to Network at 92% confidence)
+- **NOC Chatbot** built in `streamlit/app.py` — streaming output (`st.write_stream`), sliding window memory (last 10 turns), pending queue context in system prompt, Paste Logs button, two-pass scope hardening (blocks off-topic / injection / role-play jailbreaks)
+- **Python 3.14 / langchain_groq hang fixed** — replaced with raw Groq SDK shim (`_LazyLLM`) in `src/agent_graph.py`; `langchain_groq` deadlocked on Python 3.14.3 with Pydantic V1
+- **Runbook Agent (RAG)** built — `src/rag_core.py` fully rewritten (no GPU, no HuggingFace); 13 JSON runbooks written in `data/emircom_runbooks/`; `runbook_node` added to graph (specialist → runbook → correlation); `runbook_match` field added to `AgentState`; 📖 Runbook tab added to HITL panel; verified: OSPF → 98%, UPS → 95%, DB timeout → 95%, PSU failure → 92%
+- **Escalation Agent** built — `src/escalation_agent.py`; monitors Critical (>5 min) and High (>15 min) tickets at HITL; pulsing red CSS banner in Streamlit UI; escalation email to Shift Lead via Gmail SMTP; `escalation_sent` session state prevents duplicate emails; no background threads — hooks into existing 1s SLA rerun loop; live-tested: banner appeared within 10s on Critical Cell Tower ticket INC-3812
+- **GLPI ticket enrichment** — `remedy_node` in `src/agent_graph.py` now appends matched runbook text + Supervisor routing reason to the GLPI ticket description; other teams see a complete playbook when they open the ticket
+
 **April 16, 2026:**
 - Streamlit UI overhaul: queue redesigned to OpManager-style horizontal rows
 - Auto-scan removed; engineers control flow via Scan Next or per-row ▶ Process button
@@ -873,6 +929,6 @@ Returns a multi-sheet Excel file for download.
 
 ---
 
-*Documentation last updated: April 16, 2026*  
+*Documentation last updated: April 18, 2026*  
 *Project path: `C:\Users\Yazan\Desktop\Emircom_NOC_Agent`*  
 *To resume in a new session: tell Claude to read `PROJECT_REPORT.md`*
