@@ -12,25 +12,54 @@ load_dotenv()
 def print_arabic(text):
     print(text)
 
-# Lazy-load the LLM — only initialised on first use, not at app startup
-_llm = None
+# Raw Groq SDK shim — exposes .invoke(prompt) and .stream(messages) like the
+# langchain_groq ChatGroq we used before. langchain_groq's import hangs on
+# Python 3.14 due to pydantic v1 incompatibility, so we call Groq directly.
+from dataclasses import dataclass
 
-def _get_llm():
-    global _llm
-    if _llm is None:
-        from langchain_groq import ChatGroq
-        _llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.1)
-    return _llm
+_MODEL = "llama-3.3-70b-versatile"
+_TEMP = 0.1
 
-# Keep `llm` as a module-level name so existing `from src.agent_graph import llm` calls work
+@dataclass
+class _Msg:
+    content: str
+
 class _LazyLLM:
-    """Proxy that forwards every attribute/call to the real LLM, initialising it on first use."""
-    def __getattr__(self, name):
-        return getattr(_get_llm(), name)
-    def __call__(self, *args, **kwargs):
-        return _get_llm()(*args, **kwargs)
-    def invoke(self, *args, **kwargs):
-        return _get_llm().invoke(*args, **kwargs)
+    def __init__(self):
+        self._client = None
+
+    def _get(self):
+        if self._client is None:
+            from groq import Groq
+            self._client = Groq()
+        return self._client
+
+    @staticmethod
+    def _to_messages(prompt_or_messages):
+        if isinstance(prompt_or_messages, str):
+            return [{"role": "user", "content": prompt_or_messages}]
+        out = []
+        for m in prompt_or_messages:
+            if isinstance(m, dict):
+                out.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+            else:
+                out.append({"role": getattr(m, "role", "user"), "content": getattr(m, "content", str(m))})
+        return out
+
+    def invoke(self, prompt):
+        resp = self._get().chat.completions.create(
+            model=_MODEL, temperature=_TEMP, messages=self._to_messages(prompt),
+        )
+        return _Msg(content=resp.choices[0].message.content or "")
+
+    def stream(self, messages):
+        s = self._get().chat.completions.create(
+            model=_MODEL, temperature=_TEMP, messages=self._to_messages(messages), stream=True,
+        )
+        for chunk in s:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield _Msg(content=delta)
 
 llm = _LazyLLM()
 
@@ -87,6 +116,8 @@ class AgentState(TypedDict):
     severity: str
     recommendation: str
     glpi_ticket_id: str
+    supervisor_reason: str  # why supervisor picked this specialist
+    runbook_match: str      # formatted runbook text from RAG, "" if no match
 
 def triage_node(state: AgentState):
     print_arabic(f"\n[{state['ticket_id']}] 🔍 Triage Station: Receiving and routing alert...")
@@ -561,6 +592,64 @@ def remedy_node(state: AgentState):
 
     return {"glpi_ticket_id": glpi_id}
 
+# --- 📖 Runbook Agent Node — RAG-based procedure retrieval ---
+def runbook_node(state: AgentState):
+    """Search the Emircom runbook library for a matching procedure.
+    Called AFTER the specialist node so category is LLM-confirmed.
+    Stores the formatted runbook in state['runbook_match'].
+    On error or no match, stores "" — HITL panel hides the section gracefully."""
+    print(f"[{state['ticket_id']}] 📖 Runbook Agent: Searching runbook library...")
+    try:
+        from src.rag_core import find_matching_runbook
+        match = find_matching_runbook(
+            description=state.get("description", ""),
+            logs=state.get("logs", ""),
+            category=state.get("category", ""),
+            llm=llm,
+        )
+        if match:
+            print(f"[{state['ticket_id']}] 📖 Runbook matched — {len(match)} chars")
+        else:
+            print(f"[{state['ticket_id']}] 📖 No runbook match above threshold")
+        return {"runbook_match": match}
+    except Exception as e:
+        print(f"[{state['ticket_id']}] ⚠️ Runbook node error: {type(e).__name__}: {e}")
+        return {"runbook_match": ""}
+
+
+# --- Supervisor Node — LLM-based alert classification ---
+def supervisor_node(state: AgentState):
+    """Read raw alert and decide which specialist team should handle it.
+    Overwrites caller-provided category with LLM judgment."""
+    prompt = f"""You are the NOC Supervisor at Emircom. Classify this alert and route it to the right specialist team.
+
+Alert Description: {state['description']}
+Raw Logs: {state['logs']}
+
+Specialist teams:
+- Network: routing protocols (BGP/OSPF), interfaces, links, VPN, MPLS, bandwidth, wireless, cell towers
+- Security: firewall denies, intrusion detection, malware, brute force, unauthorized access, certificates
+- Hardware: PSU failure, fans, disk failure, temperature, UPS, optical transceivers, physical device faults
+- Cloud: VMs, containers, Kubernetes, hypervisors, cloud storage, auto-scaling, cloud API failures
+- Application: web services, databases, API timeouts, memory leaks, service crashes, deployment issues
+
+Respond ONLY with valid JSON, no markdown:
+{{"category": "Network", "confidence": 92, "reason": "OSPF adjacency loss on CE-MPLS-01 indicates a routing protocol issue"}}"""
+
+    try:
+        response = llm.invoke(prompt)
+        raw = response.content.replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(raw)
+        category = parsed.get("category", "").strip()
+        reason = parsed.get("reason", "")
+        if category not in ("Network", "Security", "Hardware", "Cloud", "Application"):
+            raise ValueError(f"Unknown category: {category!r}")
+        print(f"[{state['ticket_id']}] 🎯 Supervisor → {category} ({parsed.get('confidence', '?')}% confidence): {reason}")
+        return {"category": category, "supervisor_reason": reason}
+    except Exception as e:
+        print(f"[{state['ticket_id']}] ⚠️ Supervisor fallback to caller category '{state['category']}': {e}")
+        return {"supervisor_reason": f"Supervisor error — kept caller category: {e}"}
+
 # --- بناء الجراف مع المسارات الجديدة ---
 _conn = sqlite3.connect("data/noc_memory.db", check_same_thread=False)
 _init_dedup_db(_conn)  # ensure dedup table exists
@@ -575,6 +664,7 @@ workflow.add_node("security_ops", security_ops_node)
 workflow.add_node("hardware_ops", hardware_ops_node)
 workflow.add_node("cloud_ops", cloud_ops_node)
 workflow.add_node("application_ops", application_ops_node)
+workflow.add_node("runbook", runbook_node)
 workflow.add_node("correlation", correlation_node)
 workflow.add_node("remedy", remedy_node)
 
@@ -592,21 +682,34 @@ CATEGORY_ROUTING = {
 def route_after_dedup(state: AgentState):
     if state.get("is_duplicate"):
         return "drop"
+    return "supervisor"
+
+def route_after_supervisor(state: AgentState):
     return CATEGORY_ROUTING.get(state["category"], "network_ops")
+
+workflow.add_node("supervisor", supervisor_node)
 
 workflow.add_conditional_edges(
     "deduplication",
     route_after_dedup,
-    {"drop": "drop", "network_ops": "network_ops", "security_ops": "security_ops",
+    {"drop": "drop", "supervisor": "supervisor"}
+)
+
+workflow.add_conditional_edges(
+    "supervisor",
+    route_after_supervisor,
+    {"network_ops": "network_ops", "security_ops": "security_ops",
      "hardware_ops": "hardware_ops", "cloud_ops": "cloud_ops", "application_ops": "application_ops"}
 )
 
 workflow.add_edge("drop", END)
-workflow.add_edge("network_ops", "correlation")
-workflow.add_edge("security_ops", "correlation")
-workflow.add_edge("hardware_ops", "correlation")
-workflow.add_edge("cloud_ops", "correlation")
-workflow.add_edge("application_ops", "correlation")
+# Specialist → Runbook (RAG) → Correlation
+workflow.add_edge("network_ops",     "runbook")
+workflow.add_edge("security_ops",    "runbook")
+workflow.add_edge("hardware_ops",    "runbook")
+workflow.add_edge("cloud_ops",       "runbook")
+workflow.add_edge("application_ops", "runbook")
+workflow.add_edge("runbook", "correlation")
 workflow.add_edge("correlation", "remedy")
 workflow.add_edge("remedy", END)
 

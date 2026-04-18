@@ -1,0 +1,27 @@
+{
+  "id": "RB-HW-002",
+  "title": "High CPU / Temperature on Network Device",
+  "category": "Hardware",
+  "alert_triggers": ["high CPU", "CPU utilization", "high temperature", "thermal alert", "fan failure", "overheating", "processor load"],
+  "symptoms": [
+    "CPU utilization on router/switch exceeds 80% for >5 minutes",
+    "Device temperature exceeds operating threshold (typically >60°C for routing hardware)",
+    "Fan tray failure alarm",
+    "Routing protocols become sluggish or drop adjacencies due to CPU starvation"
+  ],
+  "steps": [
+    "Check CPU utilization: 'show processes cpu sorted' — identify the top consumer (interrupt vs process)",
+    "If interrupt-driven CPU: suspect a traffic storm or DoS — check 'show interfaces | inc input rate'",
+    "If process-driven: identify the process (BGP, OSPF, CEF, SNMP) causing the spike",
+    "For temperature: 'show environment temperature' — compare against threshold",
+    "Check fan status: 'show environment fan' — failed fans cause thermal shutdown",
+    "Check datacenter ambient temperature with facilities team",
+    "Inspect physical airflow: ensure no blanking panels missing, hot/cold aisle separation intact",
+    "For SNMP-caused CPU spike: reduce polling frequency or disable ifXTable polling temporarily"
+  ],
+  "resolution": "High CPU from traffic storm: apply rate-limiting or ACL to suppress offending traffic. High CPU from process: restart the process if safe (e.g., 'clear ip bgp' for BGP storm). Temperature: fix cooling immediately — clean air filters, check CRAC units, add temporary spot cooler. Fan failure: order replacement FRU and place device on priority watchlist.",
+  "escalation": "If temperature exceeds critical threshold (>70°C) and cooling cannot be restored in 15 minutes, power down the device gracefully to prevent hardware damage. Notify Network Architect for traffic re-routing.",
+  "estimated_resolution_time": "CPU: 15-30 minutes. Cooling: 1-4 hours.",
+  "affected_services": ["Routing/Switching", "Any services hosted on affected device"],
+  "reference": "Emircom Hardware Health Monitoring SOP — Rev 2.1"
+}

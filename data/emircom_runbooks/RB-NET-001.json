@@ -1,0 +1,27 @@
+{
+  "id": "RB-NET-001",
+  "title": "OSPF Adjacency Loss",
+  "category": "Network",
+  "alert_triggers": ["OSPF neighbor down", "OSPF adjacency", "ADJCHG", "OSPF FULL to DOWN", "routing protocol failure"],
+  "symptoms": [
+    "OSPF neighbor transitions from FULL to DOWN or INIT state",
+    "Routes disappear from routing table",
+    "Traffic blackholing on MPLS core links",
+    "Syslog shows %OSPF-5-ADJCHG messages"
+  ],
+  "steps": [
+    "Confirm adjacency is down: 'show ip ospf neighbor' on the affected router",
+    "Check interface status: 'show interfaces <intf>' — look for line protocol down or high error counts",
+    "Verify OSPF timers match on both peers: 'show ip ospf interface <intf>' (hello=10s, dead=40s default)",
+    "Check MTU mismatch: 'show ip interface <intf>' — MTU mismatch silently kills adjacency",
+    "Ping the OSPF neighbor IP to confirm L3 reachability",
+    "Review 'show ip ospf events' for last state transition timestamp",
+    "If interface is up/up but stuck in INIT: check for ACL blocking multicast 224.0.0.5",
+    "Check router CPU: 'show processes cpu sorted' — OSPF >10% may indicate flooding loop"
+  ],
+  "resolution": "Restore interface if physically down. Fix timer or MTU mismatch by aligning config on both peers. If ACL is blocking, permit 224.0.0.5/6. Force reset with 'clear ip ospf process' (causes brief re-convergence).",
+  "escalation": "If adjacency does not recover in 10 minutes, or more than 2 OSPF peers are down simultaneously, escalate to Network Team Lead. If MPLS core is affected, page on-call MPLS engineer.",
+  "estimated_resolution_time": "15-30 minutes",
+  "affected_services": ["MPLS backbone", "Enterprise routing", "VPN tunnels"],
+  "reference": "Cisco IOS OSPF Troubleshooting — Case OSPF-ADJ-001"
+}

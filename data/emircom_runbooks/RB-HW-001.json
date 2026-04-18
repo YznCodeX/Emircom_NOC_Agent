@@ -1,0 +1,27 @@
+{
+  "id": "RB-HW-001",
+  "title": "UPS Battery Failure / Power Alert",
+  "category": "Hardware",
+  "alert_triggers": ["UPS failure", "UPS battery", "power failure", "battery low", "UPS on battery", "power supply", "PDU alert", "rectifier failure"],
+  "symptoms": [
+    "UPS switches to battery mode — mains power lost",
+    "Battery health warning or battery test failure",
+    "UPS runtime estimate drops below safe threshold (<10 minutes)",
+    "SNMP trap from UPS management card"
+  ],
+  "steps": [
+    "Identify the affected UPS unit and its load: check UPS management card web UI or NMS",
+    "Confirm whether this is a mains power failure or a UPS hardware fault",
+    "Check battery runtime remaining on UPS card — if <15 minutes, begin controlled shutdown procedure",
+    "Check if the site has a generator — verify it has started and is taking load",
+    "Contact the facilities/power team or building management for mains status",
+    "Check if other devices on the same PDU are affected",
+    "Review battery health report: date of last replacement, number of discharge cycles",
+    "If UPS fault (not mains): check UPS bypass mode availability before shutting down"
+  ],
+  "resolution": "If mains failure: engage generator or coordinate with power utility for ETA. If battery is degraded: schedule emergency battery replacement within 24 hours. If UPS unit is faulty: switch to bypass, protect downstream gear, and arrange UPS service call. Notify datacenter manager of all power events.",
+  "escalation": "If runtime drops below 10 minutes with no generator or mains recovery, initiate controlled datacenter shutdown sequence per DR plan. Page datacenter manager and NOC manager immediately.",
+  "estimated_resolution_time": "Mains restore: 30-120 minutes. Battery replacement: 4-8 hours.",
+  "affected_services": ["Datacenter equipment", "Network core", "All co-located services"],
+  "reference": "Emircom DC Power & UPS Management SOP — Rev 5.0"
+}

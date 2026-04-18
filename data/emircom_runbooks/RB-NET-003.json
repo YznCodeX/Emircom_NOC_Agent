@@ -1,0 +1,27 @@
+{
+  "id": "RB-NET-003",
+  "title": "Interface Flapping",
+  "category": "Network",
+  "alert_triggers": ["interface down", "interface flapping", "link state change", "line protocol down", "port flapping", "carrier transitions"],
+  "symptoms": [
+    "Interface repeatedly goes up and down (carrier transitions > 5 in 1 hour)",
+    "Intermittent packet loss on the affected link",
+    "Connected routing protocols (OSPF/BGP) are destabilized",
+    "Syslog: %LINK-3-UPDOWN messages repeating"
+  ],
+  "steps": [
+    "Check carrier transitions: 'show interfaces <intf> | inc carrier' — count how many in last hour",
+    "Check physical errors: 'show interfaces <intf>' — look for CRC, input errors, giants, runts",
+    "Check optical power (fiber links): 'show interface <intf> transceiver' — Rx power should be within -3 to -20 dBm",
+    "Inspect cable/SFP physically if accessible — reseat SFP if safe to do so",
+    "Check far-end: coordinate with the remote site/ISP to check their interface counters",
+    "Check for duplex/speed mismatch: 'show interfaces <intf> | inc duplex' — should be full-duplex",
+    "Enable dampening if flapping is causing route instability: 'dampening' command under interface",
+    "Review recent config changes: 'show archive log config all' for any changes in last 2 hours"
+  ],
+  "resolution": "Replace faulty SFP or cable. Fix speed/duplex mismatch. If ISP demarcation point: open ticket with ISP and request physical layer investigation. Apply interface dampening temporarily to prevent routing churn while physical issue is investigated.",
+  "escalation": "If the interface is a core uplink (>1Gbps) or serves >500 customers and does not stabilize in 20 minutes, escalate to Network Team Lead and open ISP ticket concurrently.",
+  "estimated_resolution_time": "20-60 minutes",
+  "affected_services": ["Uplinks", "Customer circuits", "MPLS transport"],
+  "reference": "Emircom Physical Layer Troubleshooting SOP — Rev 2.4"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "RB-APP-001",
+  "title": "Database Connection Timeout / DB Unreachable",
+  "category": "Application",
+  "alert_triggers": ["database timeout", "DB connection failed", "connection pool exhausted", "SQL timeout", "database unreachable", "ORA-", "MySQL error", "PostgreSQL", "DB alert"],
+  "symptoms": [
+    "Application returns 500 errors or 'Service Unavailable' for database-dependent operations",
+    "Connection pool exhaustion alerts from the application tier",
+    "Database query response time exceeds SLA threshold (>5 seconds)",
+    "Database server CPU or I/O at 100%"
+  ],
+  "steps": [
+    "Check if the database service is running: 'systemctl status mysql/postgresql/oracle' on the DB server",
+    "Check DB server connectivity: ping and telnet to DB port (3306 MySQL, 5432 PostgreSQL, 1521 Oracle)",
+    "Review DB server resource utilization: CPU, memory, disk I/O — identify the bottleneck",
+    "Check slow query log: identify long-running queries causing lock contention",
+    "Check active connections: 'SHOW PROCESSLIST' (MySQL) or 'SELECT * FROM pg_stat_activity' (PG)",
+    "Check disk space on the DB volume — a full disk will crash the DB immediately",
+    "Review application connection pool settings — maxPoolSize may be too low for current load",
+    "Check if recent schema migration or code deployment changed query patterns"
+  ],
+  "resolution": "If DB is down: restart the service and verify data integrity. If disk full: free space immediately (rotate logs, move backups). If slow queries: kill long-running transactions, optimize indexes. If connection pool exhausted: increase pool size temporarily and investigate application query volume. Notify application team and DBA.",
+  "escalation": "If the database cannot be restarted or data corruption is suspected, page the DBA on-call immediately. If a customer-facing billing or CRM database is affected, escalate to both DBA and Application Manager.",
+  "estimated_resolution_time": "Service restart: 5-10 minutes. Slow query fix: 15-30 minutes. Disk emergency: 10-20 minutes.",
+  "affected_services": ["CRM", "Billing", "Customer portal", "Any DB-dependent application"],
+  "reference": "Emircom Application Database SOP — APP-DB-001"
+}

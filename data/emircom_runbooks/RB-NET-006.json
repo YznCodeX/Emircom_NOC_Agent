@@ -1,0 +1,27 @@
+{
+  "id": "RB-NET-006",
+  "title": "High Bandwidth Utilization / Traffic Congestion",
+  "category": "Network",
+  "alert_triggers": ["bandwidth utilization", "interface saturation", "traffic congestion", "high utilization", "bandwidth threshold", "link congestion", "traffic spike"],
+  "symptoms": [
+    "Interface utilization exceeds 80% sustained for >5 minutes",
+    "QoS queues dropping packets for high-priority traffic",
+    "Customers reporting slow speeds or latency",
+    "SNMP threshold alarm from NMS for ifInOctets/ifOutOctets"
+  ],
+  "steps": [
+    "Identify the congested interface and direction (in/out): 'show interfaces <intf>' — check input/output rates",
+    "Use NetFlow or IPSLA to identify top talkers: which source/destination pairs are consuming bandwidth",
+    "Check if this is a sudden spike (DDoS, backup job, video broadcast) or a sustained growth trend",
+    "Verify QoS policy is applied and working: 'show policy-map interface <intf>'",
+    "Check if a backup or large transfer job is scheduled — confirm with the application/server team",
+    "For DDoS suspicion: check for single-source floods or amplification patterns (UDP, ICMP)",
+    "If peering link: check ECMP load balancing — traffic may be unequally distributed",
+    "Review historical utilization in NMS to determine if this is a capacity planning issue"
+  ],
+  "resolution": "Apply rate-limiting for identified bulk flows. For DDoS: null-route the target or upstream scrubbing center. Reroute traffic to a less-congested path if available. For capacity: request bandwidth upgrade from ISP/transport provider. Adjust QoS policy to protect critical traffic during congestion.",
+  "escalation": "If congestion is caused by a DDoS attack, escalate to Security team and activate DDoS mitigation SOP. If congestion affects SLA-bound customer circuits, notify Account Management and open urgent capacity ticket.",
+  "estimated_resolution_time": "Traffic shaping: 10 minutes. DDoS mitigation: 30-60 minutes. Capacity upgrade: days/weeks.",
+  "affected_services": ["Internet access", "VPN tunnels", "Customer circuits", "Real-time services"],
+  "reference": "Emircom Capacity & Traffic Management SOP — NET-CAP-006"
+}

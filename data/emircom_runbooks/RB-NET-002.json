@@ -1,0 +1,27 @@
+{
+  "id": "RB-NET-002",
+  "title": "BGP Session Drop",
+  "category": "Network",
+  "alert_triggers": ["BGP peer down", "BGP session", "BGP NOTIFICATION", "BGP neighbor", "AS path", "BGP hold timer expired"],
+  "symptoms": [
+    "BGP neighbor state transitions to Idle or Active",
+    "Prefix count drops to 0 for the affected peer",
+    "Traffic re-routes or black-holes depending on redundancy",
+    "Syslog: %BGP-5-ADJCHANGE: neighbor X.X.X.X Down"
+  ],
+  "steps": [
+    "Check BGP summary: 'show bgp summary' — identify which neighbor is down and how long",
+    "Verify TCP reachability to the peer: 'telnet <peer-IP> 179' — if it fails, it's a routing/firewall issue",
+    "Check interface toward the peer: 'show interfaces <intf>' for errors or line-protocol down",
+    "Review BGP notification message: 'show bgp neighbors <peer> | inc notification' — identifies exact teardown reason",
+    "Verify BGP password if MD5 is used: 'show bgp neighbors <peer> | inc password'",
+    "Check if peer's AS number or update-source changed in the config",
+    "Look for route-policy or prefix-list blocking updates: 'show bgp neighbors <peer> advertised-routes'",
+    "Verify hold-timer expiry: if hold timer expired, check for CPU spikes or packet loss on the link"
+  ],
+  "resolution": "If TCP fails: fix routing to the peer or remove firewall block on port 179. If hold timer expired: investigate link quality or increase hold-time. If notification is 'Cease': peer administratively shut — coordinate with the ISP or remote NOC. Use 'clear ip bgp <peer> soft' for soft reset without dropping session.",
+  "escalation": "If the peer is a Tier-1 transit provider or IX peer, notify the ISP NOC immediately. If more than 50% of prefixes are lost, escalate to Network Architect within 15 minutes.",
+  "estimated_resolution_time": "10-45 minutes depending on ISP coordination",
+  "affected_services": ["Internet transit", "Peering", "Customer BGP routes"],
+  "reference": "Emircom BGP Peer Management SOP — Rev 3.1"
+}

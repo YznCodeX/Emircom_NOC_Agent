@@ -1,0 +1,27 @@
+{
+  "id": "RB-APP-002",
+  "title": "Web Service / API High Response Time or Failure",
+  "category": "Application",
+  "alert_triggers": ["API timeout", "high response time", "service unavailable", "HTTP 5xx", "web service down", "API failure", "latency spike", "memory leak", "service crash"],
+  "symptoms": [
+    "HTTP 500/503 errors reported by monitoring or customers",
+    "API response time exceeds 3 seconds (SLA threshold)",
+    "Service health check endpoint returning non-200",
+    "Memory utilization of application process growing unboundedly (memory leak)"
+  ],
+  "steps": [
+    "Check the service health endpoint: 'curl -I https://<service>/health' — status and response time",
+    "Check application process status on the server: 'systemctl status <service>' or 'pm2 status'",
+    "Review application error logs: 'tail -f /var/log/<app>/error.log' for stack traces",
+    "Check server resources: CPU and RAM — a memory leak will show RAM climbing toward 100%",
+    "Check upstream dependencies: is the database reachable? (see RB-APP-001) Is any external API dependency timing out?",
+    "Check load balancer status — are all backend nodes healthy? Remove unhealthy nodes from pool",
+    "Review recent deployments: was a code change pushed in the last 2 hours?",
+    "Check connection count: if too many concurrent connections, check rate limiter config"
+  ],
+  "resolution": "Restart the application service to clear memory leak (temporary fix — DBA/Dev must fix root cause). Scale up horizontally by adding instances if traffic spike. Roll back recent deployment if code change is suspected. Fix broken upstream dependency. Update load balancer health-check to remove failed nodes from rotation.",
+  "escalation": "If service cannot be restored in 20 minutes or if a customer-facing payment/portal service is affected, page the Application Owner and Dev Lead. For complete customer-facing outage, invoke Major Incident process.",
+  "estimated_resolution_time": "Service restart: 2-5 minutes. Root cause fix: 30 minutes to several hours.",
+  "affected_services": ["Customer self-service portal", "API gateway", "Mobile app backend"],
+  "reference": "Emircom Application Operations SOP — APP-WEB-002"
+}

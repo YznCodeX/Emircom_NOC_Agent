@@ -1,0 +1,27 @@
+{
+  "id": "RB-SEC-001",
+  "title": "Intrusion Detection / IDS Alert",
+  "category": "Security",
+  "alert_triggers": ["intrusion detected", "IDS alert", "IPS block", "signature triggered", "malicious traffic", "exploit attempt", "port scan", "malware detected"],
+  "symptoms": [
+    "IDS/IPS signature triggered for known exploit or scan pattern",
+    "Unusual traffic spike from a single source IP",
+    "Multiple failed connection attempts to internal systems",
+    "SIEM correlation rule fired for lateral movement or data exfiltration pattern"
+  ],
+  "steps": [
+    "Identify the source IP, destination IP, and triggered signature from the IDS alert",
+    "Check if the source IP is internal or external — internal sources indicate possible compromise",
+    "Verify the alert is not a false positive: check the payload/context in SIEM or IDS console",
+    "Check firewall logs for the same source/destination pair in the last 24 hours",
+    "Determine if the attack was blocked (IPS mode) or only detected (IDS mode)",
+    "If internal source: isolate the host immediately from the network — disable port on switch",
+    "If external source: verify firewall ACL is blocking the source IP; add block if not",
+    "Capture packet sample for forensic analysis if the threat is ongoing"
+  ],
+  "resolution": "Block the offending source IP at the perimeter firewall. If internal host is compromised: isolate (VLAN quarantine or port shutdown), notify Security team for forensic analysis. Update IDS signature database. File security incident report in GLPI with full timeline. Notify CISO if data exfiltration is suspected.",
+  "escalation": "Any confirmed intrusion (not just alert) is a P1 Security Incident — page Security Engineer on-call immediately regardless of time. If sensitive data systems are targeted, notify CISO and Legal within 1 hour.",
+  "estimated_resolution_time": "Initial containment: 15-30 minutes. Full investigation: 2-48 hours.",
+  "affected_services": ["Potentially all internal systems", "Customer data integrity"],
+  "reference": "Emircom Security Incident Response Plan — CSIRT-SOP-003"
+}

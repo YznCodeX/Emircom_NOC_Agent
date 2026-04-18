@@ -1,0 +1,27 @@
+{
+  "id": "RB-CLD-001",
+  "title": "VM Crash / Hypervisor Fault",
+  "category": "Cloud",
+  "alert_triggers": ["VM down", "virtual machine crash", "hypervisor", "ESXi", "vSphere", "KVM", "VM unresponsive", "host failure", "vMotion failed", "VM panic"],
+  "symptoms": [
+    "One or more VMs become unresponsive or crash",
+    "Hypervisor host shows red/disconnected state in vCenter/Proxmox",
+    "Applications hosted on the VM are unreachable",
+    "HA failover triggered (or failed to trigger)"
+  ],
+  "steps": [
+    "Check VM status in hypervisor management console (vCenter/Proxmox/OpenStack)",
+    "Attempt a VM console connection — check for kernel panic, BSOD, or OS-level crash",
+    "Check hypervisor host health: CPU, memory, storage I/O on the host running the VM",
+    "Review VM event log for the last 30 minutes for hardware errors or storage timeouts",
+    "Check datastore health: 'esxcli storage filesystem list' — if storage is degraded, all VMs on it are at risk",
+    "Check network connectivity to the VM's virtual switch and portgroup",
+    "If VM is running but OS is hung: take a snapshot before rebooting for forensic purposes",
+    "If host is physically failed: initiate manual vMotion or HA trigger to move VMs to healthy hosts"
+  ],
+  "resolution": "Restart the VM if OS-level crash. If host is failed: trigger HA failover in vCenter or manually migrate VMs. Investigate root cause (storage I/O, memory error, kernel bug). If hardware fault on host: place host in maintenance mode, evacuate VMs, schedule hardware replacement. Document downtime for SLA calculation.",
+  "escalation": "If a production database or billing system VM is affected, escalate to Cloud/Virtualisation team immediately. If entire host cluster is degraded, page Cloud Architect on-call.",
+  "estimated_resolution_time": "VM restart: 5-15 minutes. Host failure + migration: 30-90 minutes.",
+  "affected_services": ["Hosted applications", "Databases", "Customer-facing services on cloud"],
+  "reference": "Emircom Cloud Infrastructure SOP — CLD-VM-004"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "RB-NET-004",
+  "title": "MPLS Tunnel / LSP Failure",
+  "category": "Network",
+  "alert_triggers": ["MPLS tunnel down", "LSP failure", "MPLS label", "TE tunnel", "RSVP", "MPLS path failure", "traffic engineering"],
+  "symptoms": [
+    "MPLS TE tunnel transitions to down state",
+    "Traffic loss on circuits riding the affected LSP",
+    "RSVP path or reservation messages failing",
+    "Syslog: MPLS_TE-3-NSR_TUNNEL_OPER_STATUS or similar"
+  ],
+  "steps": [
+    "Check tunnel status: 'show mpls traffic-eng tunnels brief' — identify down tunnels and their path",
+    "Check the explicit path: 'show mpls traffic-eng tunnels <tunnel-id> detail' — see which hop is failing",
+    "Verify RSVP state on the failing hop: 'show rsvp session' on intermediate routers",
+    "Check if the issue is path computation: 'show mpls traffic-eng topology' for link availability",
+    "Verify OSPF TE extensions are working: 'show ip ospf database opaque-area' — TE LSAs must be present",
+    "Check if manual path is configured — if so, verify all hops are reachable",
+    "Try forcing the tunnel to re-signal: 'mpls traffic-eng reoptimize tunnel <id>'",
+    "Check BFD if enabled on the tunnel for fast detection"
+  ],
+  "resolution": "If a hop is down: fix the underlying interface issue (see RB-NET-003). If path computation fails: verify OSPF-TE is distributing TE attributes. If reoptimization needed: use 'mpls traffic-eng reoptimize' to find a new path. For persistent failure: configure a fallback IP path with 'ip route' as backup.",
+  "escalation": "If affected tunnels carry Tier-1 customer SLA traffic and do not recover in 15 minutes, escalate to MPLS specialist and open Priority-1 incident.",
+  "estimated_resolution_time": "15-40 minutes",
+  "affected_services": ["Enterprise VPN", "Customer MPLS circuits", "QoS guaranteed paths"],
+  "reference": "Emircom MPLS-TE Operations Guide — Section 4.3"
+}

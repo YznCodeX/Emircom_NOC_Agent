@@ -1,0 +1,27 @@
+{
+  "id": "RB-SEC-002",
+  "title": "Brute Force / Authentication Attack",
+  "category": "Security",
+  "alert_triggers": ["brute force", "failed login", "authentication failure", "SSH attack", "RDP attack", "account lockout", "credential stuffing", "password spray"],
+  "symptoms": [
+    "High volume of failed authentication attempts from one or multiple source IPs",
+    "Account lockouts triggering in Active Directory or RADIUS",
+    "SSH/RDP login failures logged in syslog or SIEM",
+    "SIEM alert: >50 failed logins in 5 minutes from same source"
+  ],
+  "steps": [
+    "Identify the targeted service and account(s) from syslog/SIEM",
+    "Determine the source IP(s) — single IP (brute force) or distributed IPs (credential stuffing)",
+    "Check if any attempt succeeded: 'show users' on network devices, check AD logon events (Event ID 4624)",
+    "Block the attacking IP(s) at the perimeter firewall immediately",
+    "Check if targeted accounts are locked out — if so, do NOT unlock until source is contained",
+    "Review the targeted service: is it exposed to the internet unnecessarily?",
+    "Enable rate-limiting or fail2ban equivalent on the targeted service if not already present",
+    "Check for successful logins from unusual geographies in the same timeframe"
+  ],
+  "resolution": "Block attacker IPs at firewall. Reset passwords for any accounts that received successful logins. Enforce MFA on all internet-facing services. Consider geo-blocking for regions with no legitimate business. Report to Security team. If SSH: disable password auth, enforce key-based auth only.",
+  "escalation": "If any login attempt succeeds, treat as Active Intrusion — follow RB-SEC-001 immediately. Page Security Engineer on-call. If admin account is targeted, escalate to CISO.",
+  "estimated_resolution_time": "Blocking: 5-10 minutes. Full assessment: 1-2 hours.",
+  "affected_services": ["SSH management access", "VPN portals", "Web application logins"],
+  "reference": "Emircom Access Security SOP — SEC-ACC-002"
+}
