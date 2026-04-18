@@ -550,6 +550,33 @@ def remedy_node(state: AgentState):
         recommended_action = analysis.get("Recommended_Action", "")
         confidence         = analysis.get("Confidence_Score", "")
 
+        # ── Runbook section (appended if matched) ────────────────────────
+        runbook_raw   = state.get("runbook_match", "")
+        supervisor_rsn = state.get("supervisor_reason", "")
+
+        # Strip markdown bold markers for plain-text GLPI body
+        def _plain(text):
+            import re
+            text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)   # **bold**
+            text = re.sub(r'_(.*?)_', r'\1', text)          # _italic_
+            return text.strip()
+
+        runbook_section = ""
+        if runbook_raw:
+            runbook_section = (
+                f"\n{'='*50}\n"
+                f"📖 MATCHED RUNBOOK\n"
+                f"{'='*50}\n"
+                f"{_plain(runbook_raw)}\n"
+            )
+
+        supervisor_section = ""
+        if supervisor_rsn:
+            supervisor_section = (
+                f"\n{'─'*50}\n"
+                f"🎯 Supervisor Routing: {supervisor_rsn}\n"
+            )
+
         description = (
             f"🤖 AI NOC Agent Analysis\n"
             f"{'='*50}\n\n"
@@ -562,6 +589,8 @@ def remedy_node(state: AgentState):
             f"ROOT CAUSE\n{'-'*30}\n{root_cause}\n\n"
             f"BUSINESS IMPACT\n{'-'*30}\n{business_impact}\n\n"
             f"RECOMMENDED ACTION\n{'-'*30}\n{recommended_action}\n"
+            f"{supervisor_section}"
+            f"{runbook_section}"
         )
     except Exception:
         description = analysis_raw
