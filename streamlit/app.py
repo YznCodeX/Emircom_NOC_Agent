@@ -1166,74 +1166,60 @@ Emircom"""
                 analyze_current_ticket()
                 st.rerun()
 
-        # ── Email Confirmation Panel (step 2 of approval) ─────────────────────
+        # ── Email Notification Step ────────────────────────────────────────────
         if st.session_state.email_confirm_pending and not is_drop:
-            st.divider()
-            st.markdown(
-                "<div style='background:#1a3a5c;border-radius:8px;padding:16px 20px;margin-bottom:8px;'>"
-                "<span style='color:#fff;font-size:16px;font-weight:bold;'>📧 Email Confirmation</span><br>"
-                "<span style='color:#a8c0d8;font-size:13px;'>Step 2 of 2 — GLPI ticket will be created regardless of your choice here</span>"
-                "</div>",
-                unsafe_allow_html=True,
-            )
-
-            # Email preview card
-            sev_badge_color = {
-                "CRITICAL": "#c0392b", "HIGH": "#e67e22",
-                "MEDIUM":   "#f39c12", "LOW":  "#27ae60",
-            }.get(severity.upper(), "#555")
+            _sev_upper    = (severity or "UNKNOWN").upper()
+            _accent_color = {"CRITICAL": "#e53935", "HIGH": "#fb8c00",
+                             "MEDIUM": "#fdd835", "LOW": "#43a047"}.get(_sev_upper, "#5c6bc0")
+            _sev_emoji    = {"CRITICAL": "🔴", "HIGH": "🟠",
+                             "MEDIUM": "🟡", "LOW": "🟢"}.get(_sev_upper, "⚪")
+            _subj = f"[{_sev_upper}] {st.session_state.thread_id} — {st.session_state.original_category} Alert"
 
             st.markdown(
-                f"<div style='border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;"
-                f"background:#f8fafc;font-size:13px;line-height:2;'>"
-                f"<b>To:</b> &nbsp;<code>{team_info['email']}</code><br>"
-                f"<b>Subject:</b> &nbsp;[<span style='color:{sev_badge_color};font-weight:bold;'>"
-                f"{severity.upper()}</span>] Incident {st.session_state.thread_id} — "
-                f"{st.session_state.original_category} Alert<br>"
-                f"<b>Team:</b> &nbsp;{team_info['team']}<br>"
-                f"<b>Affected Node:</b> &nbsp;<code>{affected_node}</code><br>"
-                f"<b>Root Cause:</b> &nbsp;{root_cause[:80]}{'…' if len(root_cause) > 80 else ''}"
+                f"<div style='border-left:4px solid {_accent_color};border-radius:0 8px 8px 0;"
+                f"background:#fafbfc;padding:14px 18px;margin:12px 0 6px 0;"
+                f"box-shadow:0 1px 3px rgba(0,0,0,0.07)'>"
+                f"<div style='font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:10px'>"
+                f"📬 &nbsp;Notify the team?</div>"
+                f"<table style='font-size:12.5px;color:#444;border-collapse:collapse;width:100%'>"
+                f"<tr><td style='color:#888;padding:3px 14px 3px 0;white-space:nowrap'>To</td>"
+                f"<td><code style='background:#eef2ff;padding:1px 6px;border-radius:4px;"
+                f"font-size:12px'>{team_info['email']}</code></td></tr>"
+                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Subject</td>"
+                f"<td style='font-weight:500'>{_sev_emoji} {_subj}</td></tr>"
+                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Team</td>"
+                f"<td>{team_info['team']}</td></tr>"
+                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Node</td>"
+                f"<td><code style='background:#eef2ff;padding:1px 6px;border-radius:4px;"
+                f"font-size:12px'>{affected_node}</code></td></tr>"
+                f"</table>"
+                f"<div style='font-size:11.5px;color:#888;margin-top:8px'>"
+                f"GLPI ticket is created either way · This controls the email only</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
-            # Hint based on severity
-            _sev_upper = severity.upper() if severity else "UNKNOWN"
-            if _sev_upper in ("LOW", "MEDIUM"):
-                st.caption(
-                    f"💡 **{_sev_upper} severity** — Sending an email is optional. "
-                    "Consider skipping if the team is already aware or if it's outside business hours."
-                )
-            elif _sev_upper in ("UNKNOWN", ""):
-                st.caption(
-                    "⚠️ **Severity unknown** — Use your judgment. "
-                    "Send if this alert needs immediate team awareness."
-                )
-            else:
-                st.caption(
-                    f"🚨 **{_sev_upper} severity** — Recommended to send. "
-                    "Team needs to be notified immediately."
-                )
-
-            ec1, ec2, ec3 = st.columns([2, 2, 3])
-            send_email_clicked = ec1.button(
-                "✉️ Send Email", type="primary", width="stretch", key="confirm_send_email"
-            )
-            skip_email_clicked = ec2.button(
-                "⏭️ Skip Email", type="secondary", width="stretch", key="confirm_skip_email"
-            )
+            ec1, ec2, _ = st.columns([3, 2, 2])
+            send_email_clicked = ec1.button("✉️ Send Notification", type="primary",
+                                            width="stretch", key="confirm_send_email")
+            skip_email_clicked = ec2.button("Skip", type="secondary",
+                                            width="stretch", key="confirm_skip_email")
 
             if send_email_clicked or skip_email_clicked:
+                st.session_state.email_confirm_pending = False
+                st.session_state.waiting_for_user = False
                 config = {"configurable": {"thread_id": st.session_state.thread_id}}
                 if skip_email_clicked:
-                    # Tell remedy_node to skip the email send
                     app.update_state(config, {"skip_email": True})
-                    st.toast("📧 Email skipped — GLPI ticket will still be created.", icon="⏭️")
+                    st.toast("Skipped — GLPI ticket still created.", icon="⏭️")
                 else:
-                    st.toast("✉️ Sending email to team...", icon="📧")
+                    st.toast("Sending notification...", icon="📧")
                 app.invoke(None, config=config)
                 _save_and_advance(status_to_save)
-                analyze_current_ticket()
+                try:
+                    analyze_current_ticket()
+                except Exception:
+                    pass
                 st.rerun()
 
     # ── Pending Queue ────────────────────────────────────────────────────────
