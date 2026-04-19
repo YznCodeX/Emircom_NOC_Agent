@@ -186,3 +186,123 @@ INC-3021,2026-04-15 12:59,Dynatrace APM,Application,High,Database Replication La
 Apr 24 12:11:07 mysql[3306]: Seconds_Behind_Master: 3654
 Apr 08 13:50:07 mysql[3306]: Large transaction detected: binlog pos 594020 — DDL operation running
 Apr 10 19:17:23 mysql[3306]: Replication lag increasing — read queries on replica returning stale data",Pending
+INC-3051,2026-04-19 01:14,SolarWinds NPM,Network,Critical,BGP Session Down — PE-RUH-CORE-01 Lost Peering with Upstream ISP,"Apr 19 01:13:42 PE-RUH-CORE-01 BGP[100]: %BGP-3-NOTIFICATION: sent to neighbor 37.224.0.1 4/0 (hold time expired)
+Apr 19 01:13:43 PE-RUH-CORE-01 BGP[100]: %BGP-5-ADJCHANGE: neighbor 37.224.0.1 Down Hold timer expired
+Apr 19 01:13:44 PE-RUH-CORE-01 BGP[100]: %BGP-3-MAXPFXEXCEED: No. of prefix received from 37.224.0.1 reaches 850000
+Apr 19 01:14:01 PE-RUH-CORE-01 BGP[100]: Active routes to AS9038 withdrawn — traffic blackholed",Pending
+INC-3052,2026-04-19 01:31,Zabbix,Network,High,MPLS VPN Packet Loss Exceeding 12% — CE-JED-01 to PE-JED-CORE,"Apr 19 01:28:05 CE-JED-01 MPLS[1]: Pseudowire vc-id 1201 state change: up to down
+Apr 19 01:28:17 CE-JED-01 interface GigabitEthernet0/1: output drops 4821 in last 60s
+Apr 19 01:29:00 CE-JED-01 QOS[1]: DSCP EF queue tail-drop 8.7% — CIR exceeded on 2Mbps CIR VPN
+Apr 19 01:31:22 PE-JED-CORE MPLS[2]: LDP session with 10.100.0.5 goes down — TCP reset received",Pending
+INC-3053,2026-04-19 02:05,SolarWinds NPM,Network,High,Interface Flap Loop — SW-ACC-DXB-B12 Port Gi0/24 Cycling Every 8 Seconds,"Apr 19 02:01:33 SW-ACC-DXB-B12 %LINEPROTO-5-UPDOWN: Line protocol on GigabitEthernet0/24 changed state to down
+Apr 19 02:01:41 SW-ACC-DXB-B12 %LINEPROTO-5-UPDOWN: Line protocol on GigabitEthernet0/24 changed state to up
+Apr 19 02:02:22 SW-ACC-DXB-B12 %LINEPROTO-5-UPDOWN: Line protocol on GigabitEthernet0/24 changed state to down
+Apr 19 02:05:10 SW-ACC-DXB-B12 %STP-2-LOOPGUARD_BLOCK: Loop guard blocking port Gi0/24 on VLAN 110",Pending
+INC-3054,2026-04-19 02:44,Nagios,Network,Medium,DNS Resolution Failures Spiking — Internal Resolver RES-RUH-01 SERVFAIL Rate 34%,"Apr 19 02:40:11 RES-RUH-01 named[2174]: resolver priming query complete
+Apr 19 02:41:05 RES-RUH-01 named[2174]: SERVFAIL for emircom.com.sa IN A from 10.10.0.0/16: no valid RRSIG
+Apr 19 02:42:33 RES-RUH-01 named[2174]: error (no valid RRSIG) resolving DNSSEC: forwarder 8.8.8.8 unreachable
+Apr 19 02:44:00 RES-RUH-01 named[2174]: rate limit 34% SERVFAIL — clients receiving degraded DNS",Pending
+INC-3055,2026-04-19 03:12,Cisco Prime,Network,Medium,WAN Link Utilization at 94% — Riyadh HQ to Jeddah Branch MPLS Circuit,"Apr 19 03:08:17 ROUTER-RUH-WAN-01 interface Serial0/0/0: output rate 940Mbps of 1Gbps CIR
+Apr 19 03:09:45 ROUTER-RUH-WAN-01 QOS[1]: Business-critical DSCP queue dropped 1.2% in 60s window
+Apr 19 03:10:30 ROUTER-RUH-WAN-01 SNMP: ifOutOctets delta 7392000 bytes/sec exceeding threshold 6400000
+Apr 19 03:12:01 ROUTER-RUH-WAN-01 BGP[1]: route dampening triggered for 3 prefixes due to instability",Pending
+INC-3056,2026-04-19 03:47,SolarWinds NPM,Network,Critical,OSPF Adjacency Lost — CE-MPLS-DXB-02 Neighbor 10.0.1.2 Down,"Apr 19 03:45:02 CE-MPLS-DXB-02 OSPF[1]: %OSPF-5-ADJCHG: Process 1 Nbr 10.0.1.2 on GigabitEthernet0/0 from FULL to DOWN — Dead timer expired
+Apr 19 03:45:03 CE-MPLS-DXB-02 OSPF[1]: %OSPF-4-NONEIGHBOR: Received database description from unknown neighbor 10.0.1.2
+Apr 19 03:46:11 CE-MPLS-DXB-02 interface GigabitEthernet0/0: BFD session 10.0.1.2 state Down
+Apr 19 03:47:30 CE-MPLS-DXB-02 IP routing: 14 OSPF routes flushed from table — convergence in progress",Pending
+INC-3057,2026-04-19 04:20,Cisco Prime,Network,High,Wireless Controller AP Disassociation Storm — WLC-RUH-DC-01 64 APs Offline,"Apr 19 04:17:55 WLC-RUH-DC-01 %DOT11-4-MAXRETRY: Station 5c:e0:c5:a1:44:22 reached max retries
+Apr 19 04:18:10 WLC-RUH-DC-01 %CAPWAP-3-ERRORLOG: AP 10.50.1.122 lost DTLS session — retrying
+Apr 19 04:18:44 WLC-RUH-DC-01 %CAPWAP-3-ERRORLOG: 64 APs in JOINING state — DTLS handshake timeout
+Apr 19 04:20:01 WLC-RUH-DC-01 %DHCP-4-LEASE_EXHAUSTED: Pool WIRELESS_CLIENTS exhausted — 0 free addresses",Pending
+INC-3058,2026-04-19 05:03,Zabbix,Network,Low,IPv6 Route Table Inconsistency — CORE-RTR-JED-01 Stale Entries Detected,"Apr 19 04:59:13 CORE-RTR-JED-01 IPv6[1]: Routing table has 847 entries — 23 stale beyond hold-down timer
+Apr 19 05:00:01 CORE-RTR-JED-01 IPv6[1]: show ipv6 route summary: 23 routes in STALE state older than 600s
+Apr 19 05:01:14 CORE-RTR-JED-01 IPv6[1]: NDP cache 10.0.100.1 entry age 720s exceeds limit 600s
+Apr 19 05:03:00 CORE-RTR-JED-01 IPv6[1]: prefix ::/0 via fe80::1 reachability check failed — 3 ping timeouts",Pending
+INC-3059,2026-04-19 05:30,Splunk SIEM,Security,Critical,Ransomware Indicators Detected — Endpoint WS-FIN-023 Volume Shadow Delete + Mass Encryption,"Apr 19 05:27:01 WS-FIN-023 Sysmon[1]: Process Create: vssadmin.exe delete shadows /all /quiet — user: finance\hamad
+Apr 19 05:27:14 WS-FIN-023 Sysmon[1]: FileCreate: 4821 files with extension .locked in C:\Finance\Reports
+Apr 19 05:27:45 WS-FIN-023 Windows Security[4688]: wmic.exe shadowcopy delete — non-interactive shell
+Apr 19 05:29:58 WS-FIN-023 Defender[1117]: Severe threat Ransom:Win32/LockBit.B detected — action: blocked (partial)",Pending
+INC-3060,2026-04-19 06:01,Zabbix,Security,High,SSL Certificate Expired — portal.emircom.com.sa Serving Expired Cert Since 03:00,"Apr 19 05:59:34 nginx[1234]: SSL_CTX_use_certificate: certificate expired 2026-04-19 03:00:00 UTC
+Apr 19 06:00:01 nginx[1234]: 4520 client connections rejected with SSL_ERROR_SSL in last 60s
+Apr 19 06:00:12 haproxy[5678]: backend portal_https: 100% of servers in DOWN state (SSL handshake failed)
+Apr 19 06:01:00 certbot[9012]: renewal job failed: ACME challenge DNS-01 token mismatch — manual renewal required",Pending
+INC-3061,2026-04-19 06:33,Splunk SIEM,Security,High,SSH Brute Force Attack — 14200 Failed Auth Attempts Against JUMP-SRV-01 from 185.234.219.0/24,"Apr 19 06:28:01 JUMP-SRV-01 sshd[4412]: Failed password for root from 185.234.219.7 port 52441 ssh2
+Apr 19 06:28:01 JUMP-SRV-01 sshd[4412]: Failed password for admin from 185.234.219.9 port 52553 ssh2
+Apr 19 06:29:55 JUMP-SRV-01 sshd[4412]: Failed password for emircom from 185.234.219.14 port 52777 ssh2
+Apr 19 06:33:00 JUMP-SRV-01 fail2ban[1000]: 185.234.219.0/24 banned after 14200 failures in 300s",Pending
+INC-3062,2026-04-19 07:15,Cisco ISE,Security,Medium,Unauthorized VPN Access Attempt — 38 Failed MFA Challenges — User: nasser.al-rashid,"Apr 19 07:10:05 CISCO-ISE-01 RADIUS: Authentication failed for nasser.al-rashid — MFA push rejected
+Apr 19 07:10:40 CISCO-ISE-01 RADIUS: Device fingerprint mismatch — MAC 08:00:27:ab:cd:ef not in registered list
+Apr 19 07:11:23 CISCO-ISE-01 RADIUS: 38 consecutive MFA failures in 300s — policy threshold 10
+Apr 19 07:15:00 CISCO-ISE-01 RADIUS: Account nasser.al-rashid locked — NOC review required",Pending
+INC-3063,2026-04-19 07:52,Cloudflare / F5 WAF,Security,Critical,DDoS Attack — emircom.com.sa Under 4.2 Gbps UDP Flood from 120 Source IPs,"Apr 19 07:48:11 F5-WAF-DMZ-01: Inbound traffic rate 4.2Gbps — baseline 180Mbps
+Apr 19 07:48:30 F5-WAF-DMZ-01: UDP flood detected — 1.2M pps to 81.21.99.5 (emircom.com.sa)
+Apr 19 07:49:44 Cloudflare: DDoS L3 mitigation activated — scrubbing center RUH engaged
+Apr 19 07:52:00 F5-WAF-DMZ-01: 120 source IPs across 14 ASNs — attack pattern: Mirai variant C2",Pending
+INC-3064,2026-04-19 08:25,Splunk SIEM,Security,High,Privilege Escalation Attempt — User omar.khalil Executed sudo su on PROD-APP-07,"Apr 19 08:22:01 PROD-APP-07 sudo[8841]: omar.khalil : TTY=pts/1 ; PWD=/var/www ; USER=root ; COMMAND=/bin/bash
+Apr 19 08:22:05 PROD-APP-07 sudo[8841]: pam_unix(sudo:auth): authentication failure
+Apr 19 08:22:34 PROD-APP-07 audit[1]: type=USER_AUTH acct=omar.khalil res=failed
+Apr 19 08:25:00 PROD-APP-07 Splunk UBA: anomaly score 94/100 — lateral movement pattern detected post-auth-failure",Pending
+INC-3065,2026-04-19 08:58,HP iLO / IPMI,Hardware,Critical,NVMe SSD Failure — Storage Array STOR-SAN-01 Drive Bay 4 Predictive Failure Alert,"Apr 19 08:55:01 STOR-SAN-01 hpssacli[1]: Controller slot 0: drive bay 4 status FAILED — SMART threshold exceeded
+Apr 19 08:55:14 STOR-SAN-01 kernel[1]: nvme0n1: I/O error — read failure on LBA 0x7a3f9c2 after 3 retries
+Apr 19 08:56:30 STOR-SAN-01 hpssacli[1]: RAID 5 array degraded — volume VOL-DB-PRIMARY rebuilding at 0%
+Apr 19 08:58:01 STOR-SAN-01 iLO[10]: NVMe drive predictive failure — replace immediately: slot 4 S/N WD-XJ3K9P1",Pending
+INC-3066,2026-04-19 09:30,HP iLO / IPMI,Hardware,High,Fan Failure — Server COMPUTE-ESX-04 Fan Module 2 RPM Below Threshold,"Apr 19 09:28:11 COMPUTE-ESX-04 iLO[10]: Fan 2 (FAN_SYS_2) speed dropped to 1200 RPM — minimum threshold 2000 RPM
+Apr 19 09:28:30 COMPUTE-ESX-04 iLO[10]: Inlet temperature 38C — warning threshold 35C breached
+Apr 19 09:29:00 COMPUTE-ESX-04 iLO[10]: CPU throttling activated — performance degraded to 60%
+Apr 19 09:30:01 COMPUTE-ESX-04 kernel[1]: thermal: CPU0 temperature 79C — BIOS throttle engaged",Pending
+INC-3067,2026-04-19 10:05,Zabbix,Hardware,Medium,Optical Transceiver Degraded — SW-CORE-RUH-01 Port Te1/0/1 Rx Power -28.4 dBm,"Apr 19 10:02:34 SW-CORE-RUH-01 optics[1]: Interface TenGigabitEthernet1/0/1 — Rx power: -28.4 dBm (alarm threshold: -25.0 dBm)
+Apr 19 10:03:01 SW-CORE-RUH-01 optics[1]: Tx power: 0.8 dBm (normal) — issue isolated to Rx path
+Apr 19 10:03:45 SW-CORE-RUH-01 interface Te1/0/1: FCS errors 4521 in last 60s — bit error rate 1.2e-6
+Apr 19 10:05:00 SW-CORE-RUH-01 SNMP: dot3StatsFrameCheckSequenceErrors rising — clean or replace SFP+",Pending
+INC-3068,2026-04-19 10:41,HP iLO / IPMI,Hardware,High,UPS Battery Health Degraded — UPS-DataCenter-RUH-A Runtime Estimate 4 Minutes at Full Load,"Apr 19 10:38:22 UPS-DataCenter-RUH-A NMC[1]: Battery capacity 18% — self-test result: FAIL (replace battery)
+Apr 19 10:39:00 UPS-DataCenter-RUH-A NMC[1]: Estimated runtime 4 minutes at current 92kW load
+Apr 19 10:39:45 UPS-DataCenter-RUH-A NMC[1]: Battery replacement date exceeded by 14 months — age 3.5 years
+Apr 19 10:41:00 UPS-DataCenter-RUH-A NMC[1]: runtime below 5-minute threshold — graceful shutdown recommended",Pending
+INC-3069,2026-04-19 11:15,Zabbix,Hardware,High,NIC Teaming Failure — Server DB-ORACLE-02 Active NIC Down — Team Degraded to Single Path,"Apr 19 11:12:01 DB-ORACLE-02 bonding[1]: active interface eth0 is now down
+Apr 19 11:12:02 DB-ORACLE-02 bonding[1]: making interface eth1 the new active one
+Apr 19 11:12:10 DB-ORACLE-02 kernel[1]: eth0: NIC Link is Down
+Apr 19 11:15:00 DB-ORACLE-02 kernel[1]: bonding0: link status definitely down for interface eth0 — NIC hardware failure suspected",Pending
+INC-3070,2026-04-19 11:48,CloudWatch / Azure Monitor,Cloud,High,AWS S3 Access Denied Spike — Bucket emircom-backups-prod 9800 403 Errors in 15 Minutes,"Apr 19 11:33:01 AWS CloudTrail: s3:GetObject DENY emircom-backups-prod — principal: arn:aws:iam::112233445566:role/BackupRole
+Apr 19 11:35:44 AWS CloudTrail: IAM policy updated 12 minutes ago — bucket policy overwritten by Terraform apply
+Apr 19 11:40:12 AWS CloudTrail: 9800 AccessDenied in 15min on emircom-backups-prod — all principals affected
+Apr 19 11:48:00 AWS Config: S3 bucket ACL changed from private to public-read then back — policy drift detected",Pending
+INC-3071,2026-04-19 12:20,CloudWatch / Azure Monitor,Cloud,Critical,Azure VM Auto-Scaling Failed — AKS Node Pool aks-app-pool Stuck at 2 Nodes — 18 Pods Pending,"Apr 19 12:15:03 AKS-PROD-01: Cluster autoscaler: failed to scale up node pool aks-app-pool
+Apr 19 12:15:10 AKS-PROD-01: azure-compute: quota limit reached — vCPU quota 100/100 in region eastus
+Apr 19 12:16:30 AKS-PROD-01: 18 pods in Pending state — insufficient cpu: 36 cores required 0 available
+Apr 19 12:20:00 AKS-PROD-01: HorizontalPodAutoscaler targeting 12 replicas — cluster cannot accommodate request",Pending
+INC-3072,2026-04-19 12:55,CloudWatch / Azure Monitor,Cloud,Medium,Container Registry Pull Rate Limited — ACR emircom-prod.azurecr.io 429 Errors Blocking CI/CD,"Apr 19 12:50:14 AKS-PROD-01: imagePullBackOff: emircom-prod.azurecr.io/api-gateway:v2.4.1 — HTTP 429
+Apr 19 12:51:00 AKS-PROD-01: Warning: Failed to pull image: rate limit exceeded — Azure Container Registry Basic tier
+Apr 19 12:52:33 AKS-PROD-01: 14 deployments blocked — CI/CD pipeline paused at docker pull step
+Apr 19 12:55:00 DevOps pipeline: stage Deploy failed — exit code 1 pull access denied rate limited",Pending
+INC-3073,2026-04-19 13:30,CloudWatch / Azure Monitor,Cloud,High,Kubernetes Ingress Controller OOMKilled — ingress-nginx Controller Pod Restarted 9 Times,"Apr 19 13:25:01 k8s-event: Pod ingress-nginx-controller-7f9d4b in namespace ingress-nginx OOMKilled
+Apr 19 13:25:15 k8s-event: Container nginx: memory limit 256Mi reached — process killed
+Apr 19 13:26:00 k8s-event: Restart count 9 — CrashLoopBackOff back-off 5m0s
+Apr 19 13:30:00 k8s-event: All ingress routes unreachable — 100% HTTP 502 on emircom production services",Pending
+INC-3074,2026-04-19 14:05,CloudWatch / Azure Monitor,Cloud,High,Azure Blob Storage Quota Exceeded — emircom-media-store 99.8% Full — Uploads Failing,"Apr 19 14:00:11 Azure Storage: account emircom-media-store capacity 99.8% (4.99TB of 5TB)
+Apr 19 14:01:30 Azure Storage: blob upload rejected — StorageAccountIsDisabled: quota exceeded
+Apr 19 14:02:44 Application: media upload service returning HTTP 507 Insufficient Storage
+Apr 19 14:05:00 Azure Monitor: 2341 failed uploads in last 30 minutes — customer-facing media portal impacted",Pending
+INC-3075,2026-04-19 14:40,ServiceNow,Cloud,Medium,Terraform State Lock Stuck — emircom-infra repo apply blocked for 47 Minutes,"Apr 19 13:53:05 Terraform: Error acquiring state lock — state is already locked by gitlab-ci (ID: a7f3c921)
+Apr 19 13:53:06 Terraform: Lock Info: Created: 2026-04-19T13:53:05 — Operation: apply
+Apr 19 14:30:00 Terraform: State lock not released after 37 minutes — previous pipeline likely crashed
+Apr 19 14:40:00 GitLab CI: 3 pipelines queued behind stuck lock — emircom-prod infra changes blocked",Pending
+INC-3076,2026-04-19 15:12,Dynatrace APM,Application,High,SAP HANA Slow Queries — ERP-SAP-01 Query Execution Time Avg 42 Seconds — SLA Breach,"Apr 19 15:07:01 ERP-SAP-01 hdbindexserver[1234]: Expensive statement: SELECT * FROM BSEG WHERE BUKRS runtime 48290ms
+Apr 19 15:08:14 ERP-SAP-01 hdbindexserver[1234]: Table BSEG row count 1.8B — statistics last updated 14 days ago
+Apr 19 15:09:30 ERP-SAP-01 hdbindexserver[1234]: Column store delta merge 72% complete — blocking 14 concurrent queries
+Apr 19 15:12:00 ERP-SAP-01 hdbindexserver[1234]: Memory allocation failed: 89% of 512GB HANA memory in use",Pending
+INC-3077,2026-04-19 15:45,Dynatrace APM,Application,Critical,REST API Gateway 503 Spike — api.emircom.com.sa 8400 Errors in 10 Minutes — All Endpoints Down,"Apr 19 15:35:01 API-GW-PROD-01 nginx[1]: upstream timed out (110) while reading response header from upstream
+Apr 19 15:35:14 API-GW-PROD-01 nginx[1]: connect() failed (111: Connection refused) while connecting to upstream
+Apr 19 15:36:00 API-GW-PROD-01 nginx[1]: upstream temporarily disabled while connecting to upstream 10.20.0.5:8080
+Apr 19 15:45:00 API-GW-PROD-01 nginx[1]: 8400 HTTP 503 responses in 10min — all backend pods unavailable",Pending
+INC-3078,2026-04-19 16:20,Zabbix,Application,High,Email Relay Queue Backed Up — SMTP-RELAY-01 Queue Depth 24000 Messages — Delivery Delay 4 Hours,"Apr 19 16:15:01 SMTP-RELAY-01 postfix/qmgr[1002]: queue file count 24000 — active 50 deferred 23950
+Apr 19 16:15:44 SMTP-RELAY-01 postfix/smtp[1003]: connect to mail.protection.outlook.com: Connection timed out
+Apr 19 16:16:30 SMTP-RELAY-01 postfix/smtp[1003]: host mail.protection.outlook.com: 421 4.4.2 Connection dropped
+Apr 19 16:20:00 SMTP-RELAY-01 postfix/qmgr[1002]: 24000 queued messages — avg delay 4h12m — M365 relay rejection",Pending
+INC-3079,2026-04-19 16:55,Dynatrace APM,Application,Medium,Web Application Memory Leak — CRM-WEB-02 JVM Heap at 97% — GC Pauses Every 8 Seconds,"Apr 19 16:50:01 CRM-WEB-02 java[2234]: GC overhead limit exceeded — 98% time in GC recovering 2% heap
+Apr 19 16:51:14 CRM-WEB-02 java[2234]: java.lang.OutOfMemoryError: Java heap space — heap dump written to /var/log/crm/heap.hprof
+Apr 19 16:52:30 CRM-WEB-02 java[2234]: Full GC pause 8.4 seconds — all request threads halted
+Apr 19 16:55:00 CRM-WEB-02 Dynatrace: response time P99 41 seconds — SLA 2 seconds breached",Pending
+INC-3080,2026-04-19 17:30,SAP Solution Manager,Application,High,ERP Batch Job Failed — Payroll Processing RPCLSTA0 Aborted After 2.5 Hours — 0 Records Posted,"Apr 19 14:58:01 ERP-SAP-01 batch[5500]: Job RPCLSTA0 PAYROLL_APRIL_2026 started — 4200 employees
+Apr 19 15:10:44 ERP-SAP-01 batch[5500]: Step RGUGBR00 aborted — ABAP runtime error DBIF_RSQL_INVALID_CURSOR
+Apr 19 16:30:12 ERP-SAP-01 batch[5500]: Database lock timeout after 5400s on table PA0008 — concurrent update conflict
+Apr 19 17:30:00 ERP-SAP-01 batch[5500]: Job RPCLSTA0 ended with status ABORTED — 0 of 4200 records posted to payroll",Pending
