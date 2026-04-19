@@ -18,8 +18,13 @@ src/
   escalation_agent.py   # fires pulsing banner + email when HITL overdue
   rag_core.py           # Runbook Agent — LLM-based retrieval (no vector DB)
 
-streamlit/
-  app.py                # Main UI — 1700+ lines, Streamlit dashboard
+streamlit/              # Modular UI — split from the original monolithic app.py
+  app.py                # Entry point & UI orchestrator (~969 lines)
+  persistence.py        # Disk I/O only — processed_tickets.json + session_state.json
+  constants.py          # SLA_THRESHOLDS, CATEGORY_ICONS, SEVERITY_COLORS, TEAM_ROUTING
+  helpers.py            # Pure functions: extract_json, get_sla_status, save_and_advance
+  reports.py            # Word .docx + Excel .xlsx generators (no Streamlit imports)
+  chatbot.py            # Tab 3 — NOC AI Assistant render function
 
 glpi/
   glpi_agent.py         # Background worker — polls GLPI every 15s
@@ -33,9 +38,9 @@ meraki/
   meraki_parser.py      # Parses Meraki webhook payloads
 
 data/
-  mock_tickets.csv      # 50 telecom-grade mock alerts
+  mock_tickets.csv      # 80 telecom-grade mock alerts (INC-3001 – INC-3080)
   emircom_runbooks/     # 13 runbook JSON files for RAG
-  processed_tickets.json  # audit log — appended by _save_and_advance()
+  processed_tickets.json  # audit log — appended by save_and_advance() in helpers.py
   session_state.json    # persists ticket_index across restarts
 
 frontend/               # React + Vite dashboard (FastAPI backend on 8001)
@@ -130,7 +135,7 @@ processed_tickets    # list of dicts — in-memory audit log
 3. Engineer clicks **Approve & Escalate** → snapshots ticket data → `email_confirm_pending = True`
 4. Email notification panel renders (dark-themed card, severity accent border)
 5. Engineer clicks **Send Notification** or **Skip** → `app.invoke(None, config)` → remedy_node runs
-6. `_save_and_advance()` → appends to processed_tickets.json, resets state
+6. `save_and_advance()` (in helpers.py) → appends to processed_tickets.json, resets state
 7. `analyze_current_ticket()` → loads next ticket → `st.rerun()`
 
 **Duplicate DROP tickets bypass the email panel entirely.**
@@ -206,11 +211,12 @@ echo 'Profile assigned';
 ---
 
 ## NOC Chatbot
-- In `streamlit/app.py` under "🤖 NOC Chatbot" tab
-- Streaming output via `llm.stream(messages)`
-- Knows live pending queue
-- Scope-hardened: rejects off-topic and prompt injection attempts
-- 📋 Paste Logs button for raw syslog input
+- Lives in `streamlit/chatbot.py` — `render_chatbot_tab(get_pending_fn)` called from app.py Tab 3
+- Streaming output via `llm.stream(messages)` using `st.write_stream()`
+- System prompt includes last 30 processed tickets + full pending queue (injected fresh each turn)
+- Scope-hardened: rejects off-topic questions, prompt injection, and persona-change attempts
+- 📋 Paste Logs button — appends raw syslog to the next user message as context
+- `get_pending_fn` is a callable (not the DataFrame) to avoid coupling chatbot.py to app.py's `df`
 
 ---
 

@@ -241,19 +241,46 @@ def generate_handoff_report_doc(
     high_cnt     = sum(1 for t in tickets_data if str(t.get("Severity","")).upper() == "HIGH")
     pending_cnt  = len(pending_tickets)
 
+    # Derived metrics
+    rt_values      = [int(t.get("Response_Time_Secs", 0) or 0) for t in tickets_data]
+    avg_rt_secs    = int(sum(rt_values) / len(rt_values)) if rt_values else 0
+    avg_rt_str     = f"{avg_rt_secs // 60}m {avg_rt_secs % 60}s" if avg_rt_secs else "—"
+    compliance_pct = f"{round((1 - sla_breached / total) * 100)}%" if total else "—"
+    conf_values    = [float(t["Confidence_Score"]) for t in tickets_data
+                      if str(t.get("Confidence_Score", "")).strip().lstrip("-").isdigit()]
+    avg_conf       = f"{round(sum(conf_values) / len(conf_values))}%" if conf_values else "—"
+
     _add_table(doc,
-        headers=["Metric", "Count"],
+        headers=["Metric", "Value"],
         rows=[
             ("Total Tickets Processed",  total),
             ("Approved & Escalated",     approved),
             ("Duplicates Dropped",       dropped),
             ("Rejected",                 rejected),
             ("SLA Breaches",             sla_breached),
+            ("SLA Compliance Rate",      compliance_pct),
             ("Critical Incidents",       crit_cnt),
             ("High-Severity Incidents",  high_cnt),
+            ("Avg. Response Time",       avg_rt_str),
+            ("Avg. AI Confidence Score", avg_conf),
             ("Pending (Not Processed)",  pending_cnt),
         ],
         col_widths=[3.0, 1.0],
+    )
+    doc.add_paragraph()
+
+    # ── Severity Breakdown ────────────────────────────────────────────────────
+    _styled_heading(doc, "Severity Breakdown", level=2)
+    sev_levels = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    sev_rows = []
+    for s in sev_levels:
+        cnt = sum(1 for t in tickets_data if str(t.get("Severity","")).upper() == s)
+        pct = f"{round(cnt / total * 100)}%" if total else "0%"
+        sev_rows.append((s.title(), cnt, pct))
+    _add_table(doc,
+        headers=["Severity", "Count", "% of Total"],
+        rows=sev_rows,
+        col_widths=[1.6, 0.8, 1.2],
     )
     doc.add_paragraph()
 
@@ -416,6 +443,17 @@ def generate_excel_report(tickets_data: list) -> io.BytesIO:
     buf    = io.BytesIO()
     df_log = pd.DataFrame(tickets_data)
 
+    # Add human-readable response time column next to the raw seconds
+    if "Response_Time_Secs" in df_log.columns:
+        def _fmt_rt(secs):
+            try:
+                s = int(secs or 0)
+                return f"{s // 60}m {s % 60}s" if s else "—"
+            except (ValueError, TypeError):
+                return "—"
+        idx = df_log.columns.tolist().index("Response_Time_Secs") + 1
+        df_log.insert(idx, "Response_Time", df_log["Response_Time_Secs"].apply(_fmt_rt))
+
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
 
         # Sheet 1: Audit Log
@@ -466,22 +504,32 @@ def generate_excel_report(tickets_data: list) -> io.BytesIO:
         sla_breached  = sum(1 for t in tickets_data if t.get("SLA_Breached", False))
         critical_cnt  = sum(1 for t in tickets_data if str(t.get("Severity","")).upper() == "CRITICAL")
         high_cnt      = sum(1 for t in tickets_data if str(t.get("Severity","")).upper() == "HIGH")
+        rt_vals       = [int(t.get("Response_Time_Secs", 0) or 0) for t in tickets_data]
+        avg_rt        = int(sum(rt_vals) / len(rt_vals)) if rt_vals else 0
+        avg_rt_str    = f"{avg_rt // 60}m {avg_rt % 60}s" if avg_rt else "—"
+        comp_pct      = f"{round((1 - sla_breached / total) * 100)}%" if total else "—"
+        conf_vals     = [float(t["Confidence_Score"]) for t in tickets_data
+                         if str(t.get("Confidence_Score","")).strip().lstrip("-").isdigit()]
+        avg_conf      = f"{round(sum(conf_vals)/len(conf_vals))}%" if conf_vals else "—"
         cat_counts: dict = {}
         for t in tickets_data:
             c = t.get("Category", "Unknown")
             cat_counts[c] = cat_counts.get(c, 0) + 1
 
         summary_rows = [
-            ("Metric", "Count"),
-            ("Total Processed",      total),
-            ("Approved & Escalated", approved),
-            ("Duplicates Dropped",   dropped),
-            ("Rejected",             rejected),
-            ("SLA Breached",         sla_breached),
-            ("Critical Incidents",   critical_cnt),
-            ("High-Severity",        high_cnt),
+            ("Metric", "Value"),
+            ("Total Processed",         total),
+            ("Approved & Escalated",    approved),
+            ("Duplicates Dropped",      dropped),
+            ("Rejected",                rejected),
+            ("SLA Breached",            sla_breached),
+            ("SLA Compliance Rate",     comp_pct),
+            ("Critical Incidents",      critical_cnt),
+            ("High-Severity",           high_cnt),
+            ("Avg. Response Time",      avg_rt_str),
+            ("Avg. AI Confidence",      avg_conf),
             ("", ""),
-            ("Category Breakdown",   ""),
+            ("Category Breakdown",      ""),
         ] + [(cat, cnt) for cat, cnt in sorted(cat_counts.items())]
 
         df_summary = pd.DataFrame(summary_rows[1:], columns=summary_rows[0])
