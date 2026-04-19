@@ -1197,15 +1197,21 @@ Emircom"""
                 unsafe_allow_html=True,
             )
 
-            # Hint for low-priority tickets
-            if severity.upper() in ("LOW", "MEDIUM"):
+            # Hint based on severity
+            _sev_upper = severity.upper() if severity else "UNKNOWN"
+            if _sev_upper in ("LOW", "MEDIUM"):
                 st.caption(
-                    f"💡 **{severity.upper()} severity** — Sending an email is optional. "
+                    f"💡 **{_sev_upper} severity** — Sending an email is optional. "
                     "Consider skipping if the team is already aware or if it's outside business hours."
+                )
+            elif _sev_upper in ("UNKNOWN", ""):
+                st.caption(
+                    "⚠️ **Severity unknown** — Use your judgment. "
+                    "Send if this alert needs immediate team awareness."
                 )
             else:
                 st.caption(
-                    f"🚨 **{severity.upper()} severity** — Recommended to send. "
+                    f"🚨 **{_sev_upper} severity** — Recommended to send. "
                     "Team needs to be notified immediately."
                 )
 
