@@ -1157,7 +1157,12 @@ Emircom"""
                     analyze_current_ticket()
                     st.rerun()
                 else:
-                    # Non-duplicate: pause and ask about email
+                    # Snapshot current ticket identity before rerun drifts session state
+                    st.session_state.email_snap_tid  = st.session_state.thread_id
+                    st.session_state.email_snap_cat  = st.session_state.original_category
+                    st.session_state.email_snap_sev  = severity
+                    st.session_state.email_snap_node = affected_node
+                    st.session_state.email_snap_team = team_info
                     st.session_state.email_confirm_pending = True
                     st.rerun()
 
@@ -1167,33 +1172,41 @@ Emircom"""
                 st.rerun()
 
         # ── Email Notification Step ────────────────────────────────────────────
+        # Snapshot ticket identity at approve-time so the panel always shows
+        # the correct ticket even if session_state.thread_id drifts.
         if st.session_state.email_confirm_pending and not is_drop:
-            _sev_upper    = (severity or "UNKNOWN").upper()
-            _accent_color = {"CRITICAL": "#e53935", "HIGH": "#fb8c00",
-                             "MEDIUM": "#fdd835", "LOW": "#43a047"}.get(_sev_upper, "#5c6bc0")
+            _snap_tid  = st.session_state.get("email_snap_tid",  st.session_state.thread_id)
+            _snap_cat  = st.session_state.get("email_snap_cat",  st.session_state.original_category)
+            _snap_sev  = st.session_state.get("email_snap_sev",  severity or "UNKNOWN")
+            _snap_node = st.session_state.get("email_snap_node", affected_node)
+            _snap_team = st.session_state.get("email_snap_team", team_info)
+
+            _sev_upper    = _snap_sev.upper()
+            _accent_color = {"CRITICAL": "#ef5350", "HIGH": "#ffa726",
+                             "MEDIUM":   "#ffee58", "LOW":  "#66bb6a"}.get(_sev_upper, "#7986cb")
             _sev_emoji    = {"CRITICAL": "🔴", "HIGH": "🟠",
-                             "MEDIUM": "🟡", "LOW": "🟢"}.get(_sev_upper, "⚪")
-            _subj = f"[{_sev_upper}] {st.session_state.thread_id} — {st.session_state.original_category} Alert"
+                             "MEDIUM":   "🟡", "LOW":  "🟢"}.get(_sev_upper, "⚪")
+            _subj = f"[{_sev_upper}] {_snap_tid} — {_snap_cat} Alert"
 
             st.markdown(
                 f"<div style='border-left:4px solid {_accent_color};border-radius:0 8px 8px 0;"
-                f"background:#fafbfc;padding:14px 18px;margin:12px 0 6px 0;"
-                f"box-shadow:0 1px 3px rgba(0,0,0,0.07)'>"
-                f"<div style='font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:10px'>"
+                f"background:rgba(255,255,255,0.05);padding:14px 18px;margin:12px 0 6px 0;"
+                f"border:1px solid rgba(255,255,255,0.08);border-left:4px solid {_accent_color}'>"
+                f"<div style='font-size:14px;font-weight:600;color:#e8eaf6;margin-bottom:10px'>"
                 f"📬 &nbsp;Notify the team?</div>"
-                f"<table style='font-size:12.5px;color:#444;border-collapse:collapse;width:100%'>"
-                f"<tr><td style='color:#888;padding:3px 14px 3px 0;white-space:nowrap'>To</td>"
-                f"<td><code style='background:#eef2ff;padding:1px 6px;border-radius:4px;"
-                f"font-size:12px'>{team_info['email']}</code></td></tr>"
-                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Subject</td>"
-                f"<td style='font-weight:500'>{_sev_emoji} {_subj}</td></tr>"
-                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Team</td>"
-                f"<td>{team_info['team']}</td></tr>"
-                f"<tr><td style='color:#888;padding:3px 14px 3px 0'>Node</td>"
-                f"<td><code style='background:#eef2ff;padding:1px 6px;border-radius:4px;"
-                f"font-size:12px'>{affected_node}</code></td></tr>"
+                f"<table style='font-size:12.5px;color:#b0bec5;border-collapse:collapse;width:100%'>"
+                f"<tr><td style='color:#78909c;padding:4px 16px 4px 0;white-space:nowrap'>To</td>"
+                f"<td><code style='background:rgba(255,255,255,0.08);color:#80cbc4;"
+                f"padding:2px 7px;border-radius:4px;font-size:12px'>{_snap_team['email']}</code></td></tr>"
+                f"<tr><td style='color:#78909c;padding:4px 16px 4px 0'>Subject</td>"
+                f"<td style='color:#cfd8dc;font-weight:500'>{_sev_emoji} {_subj}</td></tr>"
+                f"<tr><td style='color:#78909c;padding:4px 16px 4px 0'>Team</td>"
+                f"<td style='color:#cfd8dc'>{_snap_team['team']}</td></tr>"
+                f"<tr><td style='color:#78909c;padding:4px 16px 4px 0'>Node</td>"
+                f"<td><code style='background:rgba(255,255,255,0.08);color:#80cbc4;"
+                f"padding:2px 7px;border-radius:4px;font-size:12px'>{_snap_node}</code></td></tr>"
                 f"</table>"
-                f"<div style='font-size:11.5px;color:#888;margin-top:8px'>"
+                f"<div style='font-size:11px;color:#546e7a;margin-top:10px'>"
                 f"GLPI ticket is created either way · This controls the email only</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -1208,7 +1221,9 @@ Emircom"""
             if send_email_clicked or skip_email_clicked:
                 st.session_state.email_confirm_pending = False
                 st.session_state.waiting_for_user = False
-                config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                # Use the snapshotted thread_id — session_state.thread_id may have drifted
+                _tid_to_resume = st.session_state.get("email_snap_tid", st.session_state.thread_id)
+                config = {"configurable": {"thread_id": _tid_to_resume}}
                 if skip_email_clicked:
                     app.update_state(config, {"skip_email": True})
                     st.toast("Skipped — GLPI ticket still created.", icon="⏭️")
