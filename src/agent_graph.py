@@ -118,6 +118,7 @@ class AgentState(TypedDict):
     glpi_ticket_id: str
     supervisor_reason: str  # why supervisor picked this specialist
     runbook_match: str      # formatted runbook text from RAG, "" if no match
+    skip_email: bool        # set by Streamlit HITL when engineer chooses not to send notification
 
 def triage_node(state: AgentState):
     print_arabic(f"\n[{state['ticket_id']}] 🔍 Triage Station: Receiving and routing alert...")
@@ -601,23 +602,27 @@ def remedy_node(state: AgentState):
     print(f"[{state['ticket_id']}] GLPI Ticket Created: #{glpi_id}")
 
     # Send email directly via Gmail SMTP (bypasses GLPI's cron)
-    try:
-        from src.email_sender import send_alert_email
-        send_alert_email(
-            ticket_id          = state.get("ticket_id", ""),
-            glpi_ticket_id     = str(glpi_id),
-            category           = categorization,
-            severity           = severity,
-            affected_node      = affected_node,
-            symptom            = symptom,
-            root_cause         = root_cause,
-            recommended_action = recommended_action,
-            business_impact    = business_impact,
-            confidence_score   = str(confidence),
-            correlated_with    = state.get("correlated_with", ""),
-        )
-    except Exception as e:
-        print(f"[{state['ticket_id']}] ⚠️ Email error: {e}")
+    # skip_email=True means the engineer chose "Skip" in the email confirmation HITL step
+    if not state.get("skip_email", False):
+        try:
+            from src.email_sender import send_alert_email
+            send_alert_email(
+                ticket_id          = state.get("ticket_id", ""),
+                glpi_ticket_id     = str(glpi_id),
+                category           = categorization,
+                severity           = severity,
+                affected_node      = affected_node,
+                symptom            = symptom,
+                root_cause         = root_cause,
+                recommended_action = recommended_action,
+                business_impact    = business_impact,
+                confidence_score   = str(confidence),
+                correlated_with    = state.get("correlated_with", ""),
+            )
+        except Exception as e:
+            print(f"[{state['ticket_id']}] ⚠️ Email error: {e}")
+    else:
+        print(f"[{state['ticket_id']}] 📧 Email skipped — engineer chose not to notify team.")
 
     return {"glpi_ticket_id": glpi_id}
 
