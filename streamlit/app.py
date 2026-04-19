@@ -88,6 +88,8 @@ if "paste_logs_open" not in st.session_state:
     st.session_state.paste_logs_open = False
 if "pasted_logs" not in st.session_state:
     st.session_state.pasted_logs = ""
+if "email_confirm_pending" not in st.session_state:
+    st.session_state.email_confirm_pending = False
 
 
 SLA_THRESHOLDS = {
@@ -816,6 +818,7 @@ with tab1:  # Operations Center (merged Live Ops + Queue View)
             st.session_state.confidence_score    = None
             st.session_state.confidence_reason   = ""
             st.session_state.escalation_sent     = False
+            st.session_state.email_confirm_pending = False
             st.rerun()
 
         # Parse analysis JSON — robust extractor handles extra text around JSON
@@ -899,8 +902,12 @@ with tab1:  # Operations Center (merged Live Ops + Queue View)
             st.success(header)
 
         # ── Pipeline Steps ───────────────────────────────────────────────────
-        hitl_step = "<span style='font-weight:bold;color:#d62728'>⏳ HITL</span>"
-        email_step = ""
+        if st.session_state.email_confirm_pending:
+            hitl_step   = "<span>✅ HITL</span>"
+            email_step  = "<span style='color:#ccc'>──▶</span><span style='font-weight:bold;color:#1a3a5c'>⏳ Email?</span>"
+        else:
+            hitl_step   = "<span style='font-weight:bold;color:#d62728'>⏳ HITL</span>"
+            email_step  = ""
         st.markdown(
             "<div style='display:flex;justify-content:space-between;align-items:center;"
             "background:#f0f2f6;border-radius:8px;padding:8px 16px;font-size:13px;margin-bottom:4px'>"
@@ -1137,21 +1144,95 @@ Emircom"""
                 st.session_state.confidence_score      = None
                 st.session_state.confidence_reason     = ""
                 st.session_state.escalation_sent       = False
+                st.session_state.email_confirm_pending = False
                 st.session_state.ticket_index += 1
                 save_ticket_index(st.session_state.ticket_index)
 
             if approve_clicked:
-                config = {"configurable": {"thread_id": st.session_state.thread_id}}
-                app.invoke(None, config=config)
-                _save_and_advance(status_to_save)
-                try:
+                if is_drop:
+                    # Duplicate drops skip email confirmation entirely
+                    config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                    app.invoke(None, config=config)
+                    _save_and_advance(status_to_save)
                     analyze_current_ticket()
-                except Exception as _ace:
-                    st.warning(f"⚠️ Next ticket load failed: {_ace}", icon="⚠️")
-                st.rerun()
+                    st.rerun()
+                else:
+                    # Non-duplicate: pause and ask about email
+                    st.session_state.email_confirm_pending = True
+                    st.rerun()
 
             if reject_clicked:
                 _save_and_advance("Rejected")
+                analyze_current_ticket()
+                st.rerun()
+
+        # ── Email Confirmation Panel (step 2 of approval) ─────────────────────
+        if st.session_state.email_confirm_pending and not is_drop:
+            st.divider()
+            st.markdown(
+                "<div style='background:#1a3a5c;border-radius:8px;padding:16px 20px;margin-bottom:8px;'>"
+                "<span style='color:#fff;font-size:16px;font-weight:bold;'>📧 Email Confirmation</span><br>"
+                "<span style='color:#a8c0d8;font-size:13px;'>Step 2 of 2 — GLPI ticket will be created regardless of your choice here</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Email preview card
+            sev_badge_color = {
+                "CRITICAL": "#c0392b", "HIGH": "#e67e22",
+                "MEDIUM":   "#f39c12", "LOW":  "#27ae60",
+            }.get(severity.upper(), "#555")
+
+            st.markdown(
+                f"<div style='border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;"
+                f"background:#f8fafc;font-size:13px;line-height:2;'>"
+                f"<b>To:</b> &nbsp;<code>{team_info['email']}</code><br>"
+                f"<b>Subject:</b> &nbsp;[<span style='color:{sev_badge_color};font-weight:bold;'>"
+                f"{severity.upper()}</span>] Incident {st.session_state.thread_id} — "
+                f"{st.session_state.original_category} Alert<br>"
+                f"<b>Team:</b> &nbsp;{team_info['team']}<br>"
+                f"<b>Affected Node:</b> &nbsp;<code>{affected_node}</code><br>"
+                f"<b>Root Cause:</b> &nbsp;{root_cause[:80]}{'…' if len(root_cause) > 80 else ''}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Hint based on severity
+            _sev_upper = severity.upper() if severity else "UNKNOWN"
+            if _sev_upper in ("LOW", "MEDIUM"):
+                st.caption(
+                    f"💡 **{_sev_upper} severity** — Sending an email is optional. "
+                    "Consider skipping if the team is already aware or if it's outside business hours."
+                )
+            elif _sev_upper in ("UNKNOWN", ""):
+                st.caption(
+                    "⚠️ **Severity unknown** — Use your judgment. "
+                    "Send if this alert needs immediate team awareness."
+                )
+            else:
+                st.caption(
+                    f"🚨 **{_sev_upper} severity** — Recommended to send. "
+                    "Team needs to be notified immediately."
+                )
+
+            ec1, ec2, ec3 = st.columns([2, 2, 3])
+            send_email_clicked = ec1.button(
+                "✉️ Send Email", type="primary", width="stretch", key="confirm_send_email"
+            )
+            skip_email_clicked = ec2.button(
+                "⏭️ Skip Email", type="secondary", width="stretch", key="confirm_skip_email"
+            )
+
+            if send_email_clicked or skip_email_clicked:
+                config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                if skip_email_clicked:
+                    # Tell remedy_node to skip the email send
+                    app.update_state(config, {"skip_email": True})
+                    st.toast("📧 Email skipped — GLPI ticket will still be created.", icon="⏭️")
+                else:
+                    st.toast("✉️ Sending email to team...", icon="📧")
+                app.invoke(None, config=config)
+                _save_and_advance(status_to_save)
                 analyze_current_ticket()
                 st.rerun()
 
