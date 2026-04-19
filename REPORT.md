@@ -143,6 +143,7 @@ The same AI agent powers three separate interfaces:
 | April 15, 2026 | Meraki webhook receiver built (`meraki/webhook_receiver.py` + `meraki/meraki_parser.py`) — FastAPI on port 8003, receives real Meraki alerts, runs full agent pipeline automatically. Tested end-to-end with 3 alert types (WAN down, ARP spoof, AP disconnected) → GLPI tickets created. Streamlit data source selector added (Mock CSV / DNA Center / Both). Analytics dashboard upgraded with Plotly charts (6 KPIs, donut/bar/line charts, confidence histogram, SLA breakdown, filterable audit log). Mock data completely rewritten — 50 unique telecom-grade alerts with multi-line syslog logs, Emircom device naming, cell tower and VoIP alerts. Deduplication engine upgraded to SQLite persistence — survives restarts, remembers last 10 alerts across sessions. Assigned group now set at ticket creation time — emails show correct group immediately. |
 | **April 16:** | Streamlit UI overhaul — OpManager-style queue (horizontal rows, always visible), per-row ▶ Process button (pick any ticket from queue), ← Back to Queue button (no page restart), severity filters in left panel, live SLA timer during HITL review, auto-scan removed for full engineer control, int64 + JSON recovery bug fixes. GitHub repo pushed to YznCodeX/Emircom_NOC_Agent (main branch). |
 | **April 18:** | **Multi-agent Supervisor node** — LLM re-classifies every alert before routing; verified override of mislabeled alerts (92% confidence). **NOC Chatbot** — streaming output, sliding window memory, live queue context, Paste Logs, scope guardrails (two-pass hardened against injection and role-play). **Python 3.14 fix** — replaced `langchain_groq` with raw Groq SDK shim (`_LazyLLM`). **Runbook Agent (RAG)** — `rag_core.py` rewritten (no GPU); 13 realistic Emircom runbooks written; `runbook_node` wired into graph; 📖 Runbook tab added to HITL panel; verified match rates: OSPF 98%, UPS 95%, DB timeout 95%, PSU 92%. **Escalation Agent** — `escalation_agent.py` built; Critical >5 min and High >15 min trigger pulsing red banner + escalation email to Shift Lead; live-tested on Cell Tower ticket INC-3812. **GLPI enrichment** — GLPI ticket body now includes matched runbook + Supervisor routing reason so other teams have a full playbook. |
+| **April 19:** | **app.py refactored into 6 modules** — 1,767-line monolith split into `app.py` (969 lines), `persistence.py`, `constants.py`, `helpers.py`, `reports.py`, `chatbot.py`. **30 new mock tickets** — INC-3051–INC-3080 across all 5 categories; queue now 80 tickets. **Reports enhanced** — Word report gains SLA Compliance Rate, Avg Response Time, Avg Confidence, Severity Breakdown table; Excel Audit Log adds human-readable `Response_Time` column. **Module docstrings** — each module has a full explanation at the top. |
 
 ---
 
@@ -172,16 +173,16 @@ Everything listed in Section 2 is functional and has been tested. The system can
 ### Recently Completed
 | Item | Date |
 |------|------|
+| app.py refactored into 6 focused modules (persistence, constants, helpers, reports, chatbot) | April 19, 2026 |
+| 30 new mock tickets added — INC-3051–INC-3080 (queue now 80 tickets) | April 19, 2026 |
+| Reports enhanced — SLA compliance %, avg response time, severity breakdown table, Excel Response_Time column | April 19, 2026 |
+| Module docstrings — full architectural explanation at top of each streamlit module | April 19, 2026 |
 | Multi-agent Supervisor node — independent alert re-classification | April 18, 2026 |
 | NOC Chatbot — streaming, queue context, Paste Logs, scope guardrails | April 18, 2026 |
 | Runbook Agent (RAG) — 13 runbooks, LLM retrieval, HITL Runbook tab | April 18, 2026 |
 | Escalation Agent — pulsing banner + email to Shift Lead for overdue HITL tickets | April 18, 2026 |
 | GLPI ticket enrichment — runbook + supervisor reason in ticket body | April 18, 2026 |
 | GitHub repo pushed (YznCodeX/Emircom_NOC_Agent, main branch) | April 16, 2026 |
-| Streamlit queue redesigned — OpManager-style horizontal rows, always visible, per-row ▶ Process button | April 16, 2026 |
-| ← Back to Queue button in HITL panel (no page restart) | April 16, 2026 |
-| Severity filters moved to left-side panel | April 16, 2026 |
-| Live SLA timer ticking during HITL review | April 16, 2026 |
 
 ---
 
@@ -189,7 +190,7 @@ Everything listed in Section 2 is functional and has been tested. The system can
 
 | Challenge | Solution |
 |-----------|---------|
-| No access to real Emircom data | Built 50 unique telecom-grade mock tickets with real syslog logs covering all incident types |
+| No access to real Emircom data | Built 80 unique telecom-grade mock tickets with real syslog logs covering all incident types (INC-3001–INC-3080) |
 | No Remedy API access | Used GLPI (open-source ITSM) as a fully functional substitute |
 | Groq API rate limits on free tier | Added graceful error handling — clean message posted to ticket, retried next cycle |
 | Double-processing tickets | `has_real_ai_comment()` check prevents re-analysis |
@@ -242,13 +243,15 @@ Everything listed in Section 2 is functional and has been tested. The system can
 ## 9. Notes for Next Session
 
 - All major AI agents are now live: Supervisor, Runbook, Escalation, Chatbot
+- `streamlit/app.py` is now ~969 lines — heavy logic split into 5 sibling modules (persistence, constants, helpers, reports, chatbot); use flat imports (not `streamlit.module`) to avoid package name collision
 - Real runbooks can be dropped into `data/emircom_runbooks/` as JSON files — retrieval is already wired, no code needed
+- Mock queue is now 80 tickets (INC-3001–INC-3080); reset `data/session_state.json` to `{"ticket_index": 0}` to start from the beginning
 - Escalation emails go to `SHIFT_LEAD_EMAIL` env var (defaults to same Gmail box if not set)
 - `langchain_groq` must NOT be used — it deadlocks on Python 3.14; use `_LazyLLM` shim from `agent_graph.py`
-- Full technical documentation is in `PROJECT_REPORT.md` (v1.4)
+- Full technical documentation is in `PROJECT_REPORT.md` (v1.5)
 - GitHub repo: YznCodeX/Emircom_NOC_Agent (main branch, all commits pushed)
 
 ---
 
 *Report will be updated as the project progresses.*  
-*Last updated: April 19, 2026*
+*Last updated: April 19, 2026 (v1.5)*

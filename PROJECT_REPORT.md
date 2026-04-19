@@ -1,7 +1,7 @@
 # Emircom NOC Agent — Technical Documentation
 
-**Version:** 1.4  
-**Date:** April 18, 2026  
+**Version:** 1.5  
+**Date:** April 19, 2026  
 **Author:** Yazan  
 **Status:** Prototype — pending supervisor approval for production data access
 
@@ -130,7 +130,12 @@ Emircom_NOC_Agent/
 │   └── escalation_agent.py     # Escalation monitor — overdue HITL detection + email
 │
 ├── streamlit/
-│   └── app.py                  # Full-featured Streamlit NOC dashboard
+│   ├── app.py                  # Entry point & UI orchestrator (~969 lines)
+│   ├── persistence.py          # Disk I/O — processed_tickets.json + session_state.json
+│   ├── constants.py            # SLA_THRESHOLDS, CATEGORY_ICONS, SEVERITY_COLORS, TEAM_ROUTING
+│   ├── helpers.py              # Pure functions: extract_json, get_sla_status, save_and_advance
+│   ├── reports.py              # Word .docx + Excel .xlsx generators (no Streamlit imports)
+│   └── chatbot.py              # Tab 3 — NOC AI Assistant render function
 │
 ├── glpi/
 │   ├── glpi_agent.py           # Background polling worker for GLPI
@@ -150,7 +155,7 @@ Emircom_NOC_Agent/
 │   └── vite.config.js
 │
 ├── data/
-│   ├── mock_tickets.csv        # 40+ mock NOC incident tickets
+│   ├── mock_tickets.csv        # 80 mock NOC incident tickets (INC-3001–INC-3080)
 │   ├── processed_tickets.json  # Audit log of all approved/rejected tickets
 │   ├── noc_memory.db           # SqliteSaver — LangGraph agent memory
 │   ├── session_state.json      # Persists ticket index across restarts
@@ -281,15 +286,14 @@ app = graph.compile(
 
 ## 5. Streamlit Interface
 
-**File:** `streamlit/app.py`  
+**Entry point:** `streamlit/app.py` (~969 lines)  
 **Port:** 8501  
-**Lines:** ~1666
+**Module split:** app.py + 5 sibling modules (persistence, constants, helpers, reports, chatbot)
 
 ### Tabs
 
-#### Tab 1: Live Operations
+#### Tab 1: Operations Center
 - **Stats strip** — queue size, processed count, approved, rejected, duplicates, SLA breaches
-- **Upcoming queue** — next 3 tickets preview
 - **HITL Panel** — full ticket review interface:
   - Pipeline visualization (Triage → Dedup → Supervisor → Analysis → Runbook → Correlation → HITL)
   - Left column: **4 tabs** — Summary, Raw Logs, 📖 Runbook, Email Template
@@ -299,29 +303,25 @@ app = graph.compile(
   - Correlation warning banner (orange)
   - On-call escalation badge for Critical/High
   - **Escalation banner** — pulsing red CSS animation when Critical ticket exceeds 5 min at HITL (or High > 15 min); fires escalation email to Shift Lead exactly once per ticket (`escalation_sent` session state flag)
+- **Pending queue** — OpManager-style horizontal rows, severity filters in left panel, per-row ▶ Process button, ← Back to Queue button
 
-#### Tab 2: Queue View
-- Batch AI triage of all pending tickets
-- Severity filter sidebar (All / Critical / High / Medium / Low with live counts)
-- Per-ticket approve/reject inline — no modal required
-- Correlation grouping visualization
-
-#### Tab 3: Analytics Dashboard
+#### Tab 2: Analytics Dashboard
 - Performance metrics (total, approved, rejected, SLA breached)
-- Bar charts: tickets by status, tickets by category
-- Full audit log dataframe
+- Plotly charts: tickets by status, category, confidence histogram, SLA breakdown, severity donut
+- Full filterable audit log dataframe
 - **Shift Handoff Report** section:
-  - Outgoing/incoming engineer fields, shift period
-  - LLM-generated report (shift narrative, critical incidents, watch list)
-  - **Excel export** (3 sheets: Audit Log, Summary, By Category)
-  - **Word export** (.docx with cover block, metrics table, AI incident summaries, watch list)
+  - Outgoing/incoming engineer fields, shift period selector
+  - LLM-generated report (shift narrative, critical incident summaries, watch list)
+  - **Excel export** — 3 sheets: Audit Log (with human-readable response time), Summary (incl. SLA compliance %, avg response time, avg confidence), By Category
+  - **Word export** — cover block, Key Metrics table (11 rows incl. compliance + avg times), Severity Breakdown table, Open Items, Critical Incident Summaries, Correlated Groups, Full Incident Log, Watch List
 
-#### Tab 4: NOC Chatbot
-- Full conversational interface for NOC engineers
+#### Tab 3: NOC AI Assistant
+- Rendered by `streamlit/chatbot.py` — `render_chatbot_tab(get_pending_fn)`
 - **Streaming responses** via `st.write_stream` — token-by-token display
-- **Sliding window memory** — last 10 conversation turns in system context
-- **Paste Logs** button — populates input with last raw log from pending queue
-- **Pending queue context** — system prompt includes all pending ticket IDs, categories, and descriptions so chatbot can answer "what's in the queue right now"
+- **Sliding window memory** — last 20 conversation turns in system context
+- **Suggested questions** — 10 preset NOC questions in a 2-column button grid
+- **Paste Logs** button — appends raw syslog to the next message as context
+- **Pending queue context** — system prompt includes last 30 processed + all pending tickets fresh each turn
 - **Scope guardrails** — blocks off-topic requests, prompt injection, role-play jailbreaks; two-pass hardened system prompt (v1 blocked haiku; v2 blocked persona override)
 - Uses raw Groq SDK shim (`_LazyLLM`) — langchain_groq deadlocks on Python 3.14
 
@@ -822,7 +822,7 @@ Returns a multi-sheet Excel file for download.
 | Cisco DNA Center connector — live device health alerts | Streamlit |
 | Meraki webhook receiver — real-time alerts via FastAPI (port 8003) | Standalone |
 | Data source selector — Mock CSV / DNA Center / Both | Streamlit |
-| Realistic mock data — 50 unique telecom-grade alerts with syslog logs | All |
+| Realistic mock data — 80 unique telecom-grade alerts with syslog logs (INC-3001–INC-3080) | All |
 | Streamlit queue view redesigned — OpManager-style horizontal rows, always-visible, no click-to-expand | Streamlit |
 | Per-row ▶ Process button — any ticket can be picked from queue, not just next in sequence | Streamlit |
 | ← Back to Queue button in HITL panel — no page restart needed to return to queue | Streamlit |
@@ -909,6 +909,13 @@ Returns a multi-sheet Excel file for download.
 
 ## 15. Changelog
 
+**April 19, 2026:**
+- **app.py refactored** — 1,767-line monolith split into 6 focused modules: `app.py` (969 lines, UI orchestrator), `persistence.py` (disk I/O), `constants.py` (lookup tables), `helpers.py` (pure utility functions), `reports.py` (Word/Excel generators), `chatbot.py` (Tab 3 chatbot). All sibling modules use flat imports to avoid collision with the installed `streamlit` package name.
+- **30 new mock tickets added** — INC-3051–INC-3080 across all 5 categories; includes intentional near-duplicates for deduplication testing, ransomware (INC-3059), 4.2 Gbps DDoS (INC-3063), SAP payroll failure (INC-3080)
+- **Module docstrings** — each of the 6 streamlit modules has a full explanation at the top covering purpose, rules, all functions, dependencies, and architectural role
+- **Reports enhanced** — Word Key Metrics now includes SLA Compliance Rate, Avg Response Time, Avg AI Confidence; new Severity Breakdown table (count + % per level); Excel Audit Log adds human-readable `Response_Time` column; Excel Summary includes all new metrics
+- **CLAUDE.md synced** — repo layout updated, mock_tickets count corrected (50→80), chatbot section updated to point to `chatbot.py`
+
 **April 18–19, 2026:**
 - **Multi-agent Supervisor node** added to `src/agent_graph.py` — LLM re-classifies every alert before routing to specialist; `supervisor_reason` field added to `AgentState`; verified mis-label override (Network alert sent as Application → Supervisor corrects to Network at 92% confidence)
 - **NOC Chatbot** built in `streamlit/app.py` — streaming output (`st.write_stream`), sliding window memory (last 10 turns), pending queue context in system prompt, Paste Logs button, two-pass scope hardening (blocks off-topic / injection / role-play jailbreaks)
@@ -929,6 +936,6 @@ Returns a multi-sheet Excel file for download.
 
 ---
 
-*Documentation last updated: April 18, 2026*  
+*Documentation last updated: April 19, 2026*  
 *Project path: `C:\Users\Yazan\Desktop\Emircom_NOC_Agent`*  
 *To resume in a new session: tell Claude to read `PROJECT_REPORT.md`*
