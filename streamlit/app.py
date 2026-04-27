@@ -54,6 +54,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # ── Standard library ──────────────────────────────────────────────────────────
 import json
+import os
 import time
 from datetime import datetime
 
@@ -73,6 +74,7 @@ from constants import (
 from helpers  import extract_json, get_sla_status, save_and_advance
 from reports  import (
     run_handoff_llm, generate_handoff_report_doc, generate_excel_report,
+    generate_pir_doc,
 )
 from chatbot  import render_chatbot_tab
 
@@ -103,10 +105,15 @@ _defaults = {
     "escalation_sent":      False,
     "handoff_doc_buf":      None,
     "handoff_ready":        False,
+    "excel_report_cache":   None,   # bytes — regenerated only when ticket count changes
+    "excel_report_len":     -1,
     "chat_history":         [],
     "paste_logs_open":      False,
     "pasted_logs":          "",
-    "email_confirm_pending": False,
+    "email_pending":        None,   # dict with tid/cat/sev/node/team when panel active, else None
+    "trend_insight":        "",     # amber banner text after ticket approval — cleared on dismiss
+    "shift_briefing":       "",     # cached LLM shift briefing text
+    "shift_briefing_len":   -1,     # queue length when briefing was last generated
 }
 for _k, _v in _defaults.items():
     if _k not in st.session_state:
@@ -219,6 +226,107 @@ Reply ONLY with a valid JSON array, no markdown:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# SHIFT BRIEFING  — LLM one-liner summary cached until queue length changes
+# ═════════════════════════════════════════════════════════════════════════════
+
+def get_shift_briefing(pending: list) -> str:
+    """
+    Generate a 1-2 sentence NOC shift briefing using the LLM.
+    Result is cached in session_state and only regenerated when queue length changes.
+    Returns empty string if pending is empty.
+    """
+    if not pending:
+        return ""
+
+    # Return cached version if queue hasn't changed
+    if (st.session_state.shift_briefing_len == len(pending)
+            and st.session_state.shift_briefing):
+        return st.session_state.shift_briefing
+
+    from collections import Counter
+    from src.agent_graph import llm as _llm
+
+    crit  = sum(1 for t in pending if t.get("Severity") == "Critical")
+    high  = sum(1 for t in pending if t.get("Severity") == "High")
+    med   = sum(1 for t in pending if t.get("Severity") == "Medium")
+    low   = sum(1 for t in pending if t.get("Severity") == "Low")
+
+    nodes = [str(t.get("Affected_Node", "")).strip() for t in pending
+             if t.get("Affected_Node") and str(t.get("Affected_Node")).strip() not in ("", "nan", "—")]
+    node_counts = Counter(nodes).most_common(3)
+    hotspots    = ", ".join(f"{n} ({c}×)" for n, c in node_counts if c >= 2) or "none"
+    next_up     = pending[0].get("Ticket_ID", "—")
+
+    prompt = (
+        "You are a NOC shift lead at Emircom. Write a concise 1-2 sentence shift briefing "
+        "for an engineer starting their session. Be direct — no greetings, no filler.\n\n"
+        f"Queue stats: {len(pending)} total | {crit} Critical | {high} High | {med} Medium | {low} Low\n"
+        f"Repeated devices (possible shared root cause): {hotspots}\n"
+        f"First ticket in queue: {next_up}\n\n"
+        "Example style: \"32 alerts pending — 4 Critical. CE-MPLS-01 appears 3 times, "
+        "investigate as shared root cause. Start with INC-3001.\""
+    )
+
+    try:
+        resp = _llm.invoke(prompt)
+        text = resp.content.strip()
+    except Exception:
+        text = (f"{len(pending)} alerts pending — {crit} Critical, {high} High. "
+                f"Start with {next_up}.")
+
+    st.session_state.shift_briefing     = text
+    st.session_state.shift_briefing_len = len(pending)
+    return text
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TREND ANALYSIS  — pattern detector over last N resolved tickets
+# ═════════════════════════════════════════════════════════════════════════════
+
+def check_trends(processed: list) -> str:
+    """
+    Analyse the last 10 processed tickets for patterns (category spikes, repeated devices,
+    severity clusters, correlated tickets).
+    Returns a one-sentence insight prefixed with "⚠️ Trend:" or "" if no pattern found.
+    Requires at least 3 processed tickets before running.
+    """
+    if len(processed) < 3:
+        return ""
+
+    recent  = processed[-10:]
+    summary = "\n".join(
+        f"- {t.get('Ticket_ID','?')} | {t.get('Category','?')} | "
+        f"{t.get('Severity','?')} | correlated_with={t.get('Correlated_With','none')}"
+        for t in recent
+    )
+
+    from src.agent_graph import llm as _llm
+
+    prompt = (
+        "You are a NOC analyst at Emircom. Examine these recently resolved tickets "
+        "and identify if there is a meaningful trend worth flagging.\n\n"
+        f"Recent tickets (oldest first):\n{summary}\n\n"
+        "Rules:\n"
+        "- If the same category appears 3+ times → flag it.\n"
+        "- If 2+ tickets share a correlated_with value → flag it.\n"
+        "- If Critical/High severity spikes (3+ in a row) → flag it.\n"
+        "- If there is NO clear pattern → reply with exactly: NO_TREND\n\n"
+        "When a pattern exists write ONE sentence starting with '⚠️ Trend:'. "
+        "Be specific (mention ticket IDs or category). No filler."
+    )
+
+    try:
+        resp = _llm.invoke(prompt)
+        text = resp.content.strip()
+    except Exception:
+        return ""
+
+    if "NO_TREND" in text:
+        return ""
+    return text
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # TICKET ANALYZER  (depends on `df` and `noc_app`, so lives here)
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -251,7 +359,7 @@ def analyze_current_ticket(specific_ticket: dict | None = None) -> None:
 
     st.session_state.thread_id          = ticket["Ticket_ID"]
     st.session_state.original_category  = ticket["Category"]
-    st.session_state.email_confirm_pending = False   # always clear when a new ticket loads
+    st.session_state.email_pending = None   # always clear when a new ticket loads
     config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
     inputs = {
@@ -318,6 +426,34 @@ with tab1:
 
     st.divider()
 
+    # ── Trend Analysis banner (amber) — shown after ticket approval ───────────
+    if st.session_state.trend_insight:
+        _tc, _td = st.columns([11, 1])
+        with _tc:
+            st.markdown(
+                f"<div style='background:rgba(245,158,11,0.10);border-left:4px solid #f59e0b;"
+                f"border-radius:6px;padding:10px 16px;margin-bottom:10px;font-size:14px;'>"
+                f"{st.session_state.trend_insight}</div>",
+                unsafe_allow_html=True,
+            )
+        with _td:
+            if st.button("✕", key="dismiss_trend", help="Dismiss"):
+                st.session_state.trend_insight = ""
+                st.rerun()
+
+    # ── Shift Briefing banner (blue) — shown when queue is idle ──────────────
+    if not st.session_state.waiting_for_user:
+        _pending_for_brief = get_pending_tickets()
+        if _pending_for_brief:
+            _briefing = get_shift_briefing(_pending_for_brief)
+            if _briefing:
+                st.markdown(
+                    f"<div style='background:rgba(59,130,246,0.08);border-left:4px solid #3b82f6;"
+                    f"border-radius:6px;padding:10px 16px;margin-bottom:10px;font-size:14px;'>"
+                    f"🌅 <b>Shift Briefing</b> &nbsp;—&nbsp; {_briefing}</div>",
+                    unsafe_allow_html=True,
+                )
+
     # ── HITL Panel ────────────────────────────────────────────────────────────
     if st.session_state.waiting_for_user:
 
@@ -328,7 +464,7 @@ with tab1:
             st.session_state.confidence_score      = None
             st.session_state.confidence_reason     = ""
             st.session_state.escalation_sent       = False
-            st.session_state.email_confirm_pending = False
+            st.session_state.email_pending         = None
             st.rerun()
 
         # Parse analysis JSON from LLM output
@@ -392,7 +528,7 @@ with tab1:
             st.success(header)
 
         # ── Pipeline progress bar ─────────────────────────────────────────────
-        if st.session_state.email_confirm_pending:
+        if st.session_state.get("email_pending"):
             hitl_step  = "<span>✅ HITL</span>"
             email_step = "<span style='color:#ccc'>──▶</span><span style='font-weight:bold;color:#1a3a5c'>⏳ Email?</span>"
         else:
@@ -608,13 +744,14 @@ Emircom"""
                     analyze_current_ticket()
                     st.rerun()
                 else:
-                    # Snapshot ticket identity — session_state may drift during SLA reruns
-                    st.session_state.email_snap_tid  = st.session_state.thread_id
-                    st.session_state.email_snap_cat  = st.session_state.original_category
-                    st.session_state.email_snap_sev  = severity
-                    st.session_state.email_snap_node = affected_node
-                    st.session_state.email_snap_team = team_info
-                    st.session_state.email_confirm_pending = True
+                    # Single atomic snapshot — tid ties the panel to this exact ticket
+                    st.session_state.email_pending = {
+                        "tid":  st.session_state.thread_id,
+                        "cat":  st.session_state.original_category,
+                        "sev":  severity,
+                        "node": affected_node,
+                        "team": team_info,
+                    }
                     st.rerun()
 
             if reject_clicked:
@@ -623,16 +760,30 @@ Emircom"""
                     correlated_with=correlated_with, is_correlated=is_correlated,
                     confidence=confidence, status="Rejected",
                 )
+                try:
+                    _trend = check_trends(st.session_state.processed_tickets)
+                    if _trend:
+                        st.session_state.trend_insight = _trend
+                except Exception:
+                    pass
                 analyze_current_ticket()
                 st.rerun()
 
         # ── Email notification step ───────────────────────────────────────────
-        if st.session_state.email_confirm_pending and not is_drop:
-            _snap_tid  = st.session_state.get("email_snap_tid",  st.session_state.thread_id)
-            _snap_cat  = st.session_state.get("email_snap_cat",  st.session_state.original_category)
-            _snap_sev  = st.session_state.get("email_snap_sev",  severity or "UNKNOWN")
-            _snap_node = st.session_state.get("email_snap_node", affected_node)
-            _snap_team = st.session_state.get("email_snap_team", team_info)
+        # email_pending is a dict with tid/cat/sev/node/team, set atomically at
+        # approve-click. Panel only shows if the stored tid still matches the
+        # current ticket — so it can never ghost onto the next ticket.
+        _ep = st.session_state.get("email_pending")
+        if _ep and _ep.get("tid") != st.session_state.thread_id:
+            st.session_state.email_pending = None
+            _ep = None
+
+        if _ep and not is_drop:
+            _snap_tid  = _ep["tid"]
+            _snap_cat  = _ep["cat"]
+            _snap_sev  = _ep["sev"]
+            _snap_node = _ep["node"]
+            _snap_team = _ep["team"]
 
             _sev_upper    = _snap_sev.upper()
             _accent_color = {"CRITICAL": "#ef5350", "HIGH": "#ffa726",
@@ -682,9 +833,9 @@ Emircom"""
 
             if send_email_clicked or skip_email_clicked:
                 # Dismiss panel FIRST — prevents ghost re-render if downstream calls fail
-                st.session_state.email_confirm_pending = False
-                st.session_state.waiting_for_user      = False
-                _tid_to_resume = st.session_state.get("email_snap_tid", st.session_state.thread_id)
+                _tid_to_resume = (_ep or {}).get("tid", st.session_state.thread_id)
+                st.session_state.email_pending    = None
+                st.session_state.waiting_for_user = False
                 config = {"configurable": {"thread_id": _tid_to_resume}}
 
                 if skip_email_clicked:
@@ -698,11 +849,55 @@ Emircom"""
                 except Exception as _remedy_err:
                     st.toast(f"⚠️ Remedy error (ticket still saved): {_remedy_err}", icon="⚠️")
 
+                # Auto-generate PIR for Critical / High tickets
+                pir_path = ""
+                if _snap_sev.upper() in ("CRITICAL", "HIGH"):
+                    try:
+                        _final_state   = noc_app.get_state(config).values
+                        _elapsed_secs  = int(time.time() - st.session_state.sla_start_time) \
+                                         if st.session_state.sla_start_time else 0
+                        _sla_limit     = SLA_THRESHOLDS.get(_snap_sev.upper(), 3600)
+                        pir_path = generate_pir_doc({
+                            "ticket_id":          _snap_tid,
+                            "category":           _snap_cat,
+                            "severity":           _snap_sev,
+                            "description":        _final_state.get("description", ""),
+                            "analysis":           _final_state.get("analysis", ""),
+                            "recommendation":     _final_state.get("recommendation", ""),
+                            "runbook_match":      _final_state.get("runbook_match", ""),
+                            "supervisor_reason":  _final_state.get("supervisor_reason", ""),
+                            "glpi_ticket_id":     _final_state.get("glpi_ticket_id", ""),
+                            "team":               _snap_team.get("team", ""),
+                            "affected_node":      _snap_node,
+                            "response_time_secs": _elapsed_secs,
+                            "sla_breached":       _elapsed_secs > _sla_limit,
+                            "correlated_with":    correlated_with if is_correlated else "",
+                            "confidence_score":   confidence,
+                            "opened_at":          datetime.fromtimestamp(
+                                                      st.session_state.sla_start_time
+                                                  ).strftime("%d %B %Y  %H:%M")
+                                                  if st.session_state.sla_start_time else "",
+                            "resolved_at":        datetime.now().strftime("%d %B %Y  %H:%M"),
+                        })
+                        st.toast(f"📄 PIR saved for {_snap_tid}", icon="📄")
+                    except Exception as _pir_err:
+                        st.toast(f"⚠️ PIR generation failed: {_pir_err}", icon="⚠️")
+
                 save_and_advance(
                     session_state=st.session_state, severity=_snap_sev,
                     correlated_with=correlated_with, is_correlated=is_correlated,
                     confidence=confidence, status=status_to_save,
+                    pir_path=pir_path,
                 )
+
+                # Trend analysis — check for patterns in recently resolved tickets
+                try:
+                    _trend = check_trends(st.session_state.processed_tickets)
+                    if _trend:
+                        st.session_state.trend_insight = _trend
+                except Exception:
+                    pass
+
                 try:
                     analyze_current_ticket()
                 except Exception:
@@ -922,6 +1117,35 @@ with tab2:
 
         st.divider()
 
+        # Post-Incident Reports
+        pir_tickets = [
+            t for t in st.session_state.processed_tickets
+            if t.get("PIR_Path") and os.path.isfile(t["PIR_Path"])
+        ]
+        if pir_tickets:
+            st.subheader("📄 Post-Incident Reports")
+            st.caption("Auto-generated for Critical and High severity tickets")
+            _SEV_ICON = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}
+            for _pt in pir_tickets:
+                _pc1, _pc2, _pc3, _pc4 = st.columns([1.2, 1.3, 1.0, 1.5])
+                _pc1.code(_pt["Ticket_ID"], language=None)
+                _pc2.markdown(
+                    f"{CATEGORY_ICONS.get(_pt.get('Category',''), '📋')} "
+                    f"{_pt.get('Category','')}"
+                )
+                _psev = _pt.get("Severity", "")
+                _pc3.markdown(f"{_SEV_ICON.get(_psev,'⚪')} **{_psev}**")
+                with open(_pt["PIR_Path"], "rb") as _pf:
+                    _pc4.download_button(
+                        label     = "📥 Download PIR",
+                        data      = _pf.read(),
+                        file_name = f"{_pt['Ticket_ID']}_PIR.docx",
+                        mime      = "application/vnd.openxmlformats-officedocument"
+                                    ".wordprocessingml.document",
+                        key       = f"pir_dl_{_pt['Ticket_ID']}",
+                    )
+            st.divider()
+
         # Shift Handoff Report
         st.subheader("📋 Shift Handoff Report")
         hf1, hf2, hf3, hf4 = st.columns([2, 2, 2, 2])
@@ -974,10 +1198,15 @@ with tab2:
                 st.button("📄 Download Handoff (.docx)", disabled=True, width="stretch")
 
         with excel_col:
-            excel_buf = generate_excel_report(st.session_state.processed_tickets)
+            _cur_len = len(st.session_state.processed_tickets)
+            if st.session_state.excel_report_len != _cur_len:
+                st.session_state.excel_report_cache = generate_excel_report(
+                    st.session_state.processed_tickets
+                ).getvalue()
+                st.session_state.excel_report_len = _cur_len
             st.download_button(
                 label     = "📊 Download Excel Log (.xlsx)",
-                data      = excel_buf,
+                data      = st.session_state.excel_report_cache,
                 file_name = f"NOC_Audit_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime      = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 width     = "stretch",
