@@ -32,7 +32,7 @@ Each service opens in its own PowerShell window.
 
 To load new tickets into GLPI for the agent to process:
 ```powershell
-.\venv\Scripts\python.exe push_to_glpi.py
+.\venv\Scripts\python.exe glpi\push_to_glpi.py
 ```
 
 The agent will pick them up within 15 seconds, post AI analysis, set priority, and assign them to the right NOC team.
@@ -44,11 +44,11 @@ The agent will pick them up within 15 seconds, post AI analysis, set priority, a
 ```powershell
 # Terminal 1 — Backend
 .\venv\Scripts\Activate.ps1
-python -m uvicorn backend.main:app --port 8001
+python -m uvicorn react.backend.main:app --port 8001 --reload
 
 # Terminal 2 — GLPI Agent
 .\venv\Scripts\Activate.ps1
-python glpi_agent.py
+python glpi\glpi_agent.py
 
 # Terminal 3 — Frontend
 cd frontend
