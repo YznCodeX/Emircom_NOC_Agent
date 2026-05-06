@@ -52,6 +52,7 @@ Functions
 """
 import io
 import json
+import os
 from datetime import datetime
 
 import pandas as pd
@@ -409,9 +410,45 @@ def generate_handoff_report_doc(
 
         doc.add_paragraph()
 
+    # ── Section 7: Post-Incident Reports (full mode only) ────────────────────
+    if not short_mode:
+        _styled_heading(doc, "7.  Post-Incident Reports (PIR)")
+        pir_tickets = [t for t in tickets_data
+                       if str(t.get("Severity", "")).upper() in ("CRITICAL", "HIGH")
+                       and t.get("PIR_Path", "")]
+        if not pir_tickets:
+            p = doc.add_paragraph(
+                "No Post-Incident Reports generated this shift. "
+                "PIRs are auto-created for Critical and High severity tickets."
+            )
+            p.runs[0].font.size = Pt(10.5)
+            p.runs[0].italic    = True
+        else:
+            note = doc.add_paragraph(
+                f"{len(pir_tickets)} PIR(s) generated this shift. "
+                "Files are saved in the data/pir/ folder alongside this report."
+            )
+            note.runs[0].font.size = Pt(10.5)
+            doc.add_paragraph()
+            _add_table(doc,
+                headers=["Ticket ID", "Category", "Severity", "Time-to-Resolve", "PIR Filename"],
+                rows=[
+                    (
+                        t["Ticket_ID"],
+                        t.get("Category", ""),
+                        t.get("Severity", ""),
+                        (lambda s: f"{s // 60}m {s % 60}s")(int(t.get("Response_Time_Secs", 0) or 0)),
+                        os.path.basename(t.get("PIR_Path", "")),
+                    )
+                    for t in pir_tickets
+                ],
+                col_widths=[1.2, 1.2, 1.0, 1.3, 2.5],
+            )
+        doc.add_paragraph()
+
     # ── Watch List (both modes) ────────────────────────────────────────────────
     _styled_heading(doc, "3.  Watch List — Incoming Shift Priorities"
-                         if short_mode else "7.  Watch List — Incoming Shift Priorities")
+                         if short_mode else "8.  Watch List — Incoming Shift Priorities")
     p = doc.add_paragraph(ai_content.get("watch_list", "No watch list generated."))
     p.runs[0].font.size = Pt(10.5)
     doc.add_paragraph()
@@ -557,3 +594,180 @@ def generate_excel_report(tickets_data: list) -> io.BytesIO:
 
     buf.seek(0)
     return buf
+
+
+# ── Post-Incident Report (PIR) builder ────────────────────────────────────────
+
+def generate_pir_doc(pir_data: dict) -> str:
+    """
+    Generate a Post-Incident Report Word doc for a Critical/High ticket.
+    Saves to data/pir/{ticket_id}_PIR.docx and returns the absolute file path.
+    Called from app.py immediately after remedy_node completes for Critical/High tickets.
+    """
+    ticket_id          = pir_data.get("ticket_id", "UNKNOWN")
+    category           = pir_data.get("category", "")
+    severity           = pir_data.get("severity", "").upper()
+    description        = pir_data.get("description", "No description available.")
+    analysis_raw       = pir_data.get("analysis", "")
+    recommendation     = pir_data.get("recommendation", "")
+    runbook_match      = pir_data.get("runbook_match", "")
+    supervisor_reason  = pir_data.get("supervisor_reason", "")
+    glpi_ticket_id     = pir_data.get("glpi_ticket_id", "")
+    team               = pir_data.get("team", "")
+    affected_node      = pir_data.get("affected_node", "")
+    response_time_secs = int(pir_data.get("response_time_secs", 0) or 0)
+    sla_breached       = bool(pir_data.get("sla_breached", False))
+    correlated_with    = pir_data.get("correlated_with", "")
+    confidence_score   = pir_data.get("confidence_score", "")
+    opened_at          = pir_data.get("opened_at", "")
+    resolved_at        = pir_data.get("resolved_at", datetime.now().strftime("%d %B %Y  %H:%M"))
+
+    # Parse analysis JSON for narrative text
+    analysis_text = ""
+    try:
+        if analysis_raw:
+            parsed = json.loads(analysis_raw.replace("```json", "").replace("```", "").strip())
+            analysis_text = parsed.get("analysis", parsed.get("summary", ""))
+            if not recommendation:
+                recommendation = parsed.get("recommendation", "")
+    except Exception:
+        analysis_text = str(analysis_raw)[:500] if analysis_raw else ""
+
+    rt_str  = f"{response_time_secs // 60}m {response_time_secs % 60}s" if response_time_secs else "—"
+    sla_str = "BREACHED" if sla_breached else "Within SLA"
+
+    sev_rgb = {
+        "CRITICAL": RGBColor(0xC0, 0x00, 0x00),
+        "HIGH":     RGBColor(0xC5, 0x5A, 0x11),
+        "MEDIUM":   RGBColor(0x7F, 0x60, 0x00),
+        "LOW":      RGBColor(0x37, 0x56, 0x23),
+    }.get(severity, RGBColor(0x1F, 0x4E, 0x79))
+
+    doc = Document()
+    for sec in doc.sections:
+        sec.top_margin    = Inches(0.9)
+        sec.bottom_margin = Inches(0.9)
+        sec.left_margin   = Inches(1.1)
+        sec.right_margin  = Inches(1.1)
+
+    def _cp(text, size=11, bold=False, italic=False,
+            align=WD_ALIGN_PARAGRAPH.CENTER, rgb=None):
+        p = doc.add_paragraph()
+        p.alignment = align
+        run = p.add_run(text)
+        run.bold       = bold
+        run.italic     = italic
+        run.font.size  = Pt(size)
+        if rgb:
+            run.font.color.rgb = rgb
+        return p
+
+    # Cover
+    _cp("EMIRCOM NOC / SOC COMMAND CENTER", size=16, bold=True,
+        rgb=RGBColor(0x1F, 0x4E, 0x79))
+    _cp("POST-INCIDENT REPORT (PIR)", size=13, bold=True, rgb=sev_rgb)
+    _cp("Confidential — Internal Use Only", size=9, italic=True,
+        rgb=RGBColor(0x80, 0x80, 0x80))
+    doc.add_paragraph()
+
+    cover_tbl = doc.add_table(rows=7, cols=2)
+    for i, (lbl, val) in enumerate([
+        ("Ticket ID",     ticket_id),
+        ("Category",      category),
+        ("Severity",      severity),
+        ("Affected Node", affected_node or "—"),
+        ("Assigned Team", team or "—"),
+        ("Opened",        opened_at or "—"),
+        ("Resolved",      resolved_at),
+    ]):
+        lc, vc = cover_tbl.rows[i].cells[0], cover_tbl.rows[i].cells[1]
+        lc.text = lbl
+        vc.text = val
+        lr = lc.paragraphs[0].runs[0]
+        lr.bold            = True
+        lr.font.size       = Pt(10)
+        lr.font.color.rgb  = RGBColor(0x1F, 0x4E, 0x79)
+        vr = vc.paragraphs[0].runs[0]
+        vr.font.size = Pt(10)
+        if lbl == "Severity":
+            vr.bold            = True
+            vr.font.color.rgb  = sev_rgb
+    doc.add_paragraph()
+
+    _add_table(doc,
+        headers=["Metric", "Value"],
+        rows=[
+            ("Time-to-Resolve",  rt_str),
+            ("SLA Status",       sla_str),
+            ("AI Confidence",    f"{confidence_score}%" if confidence_score else "—"),
+            ("GLPI Ticket",      str(glpi_ticket_id) if glpi_ticket_id else "—"),
+            ("Correlated With",  correlated_with or "None"),
+        ],
+        col_widths=[2.5, 2.0],
+    )
+    doc.add_paragraph()
+
+    def _section(title, body):
+        _styled_heading(doc, title, level=1)
+        text = str(body).strip() if body else ""
+        p    = doc.add_paragraph(text if text else "Not available.")
+        p.runs[0].font.size = Pt(10.5)
+        if not text:
+            p.runs[0].italic          = True
+            p.runs[0].font.color.rgb  = RGBColor(0x80, 0x80, 0x80)
+        doc.add_paragraph()
+
+    _section("1.  Incident Description", description)
+    _section("2.  AI Analysis",          analysis_text)
+    _section("3.  Supervisor Routing",   supervisor_reason or "No routing reason recorded.")
+
+    _styled_heading(doc, "4.  Runbook Applied", level=1)
+    if runbook_match:
+        p = doc.add_paragraph(runbook_match[:1200])
+        p.runs[0].font.size = Pt(10.5)
+    else:
+        p = doc.add_paragraph(
+            "No runbook matched this alert (confidence below 50% threshold)."
+        )
+        p.runs[0].font.size       = Pt(10.5)
+        p.runs[0].italic          = True
+        p.runs[0].font.color.rgb  = RGBColor(0x80, 0x80, 0x80)
+    doc.add_paragraph()
+
+    _section("5.  Recommended Actions",
+             recommendation or "Review AI analysis for recommended steps.")
+
+    _styled_heading(doc, "6.  Action Items", level=1)
+    _add_table(doc,
+        headers=["#", "Action", "Owner", "Status"],
+        rows=[
+            ("1", "Review root cause and update runbook if applicable",
+             team or "NOC Team", "Open"),
+            ("2", "Monitor affected node for recurrence within 24 hours",
+             team or "NOC Team", "Open"),
+            ("3", "Verify GLPI ticket closure with full resolution notes",
+             "NOC Lead", "Open"),
+        ],
+        col_widths=[0.3, 3.5, 1.5, 0.9],
+    )
+    doc.add_paragraph()
+
+    # Footer
+    sep = doc.add_paragraph("─" * 72)
+    sep.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    foot = doc.add_paragraph(
+        f"Generated by Emircom NOC AI Agent  •  "
+        f"{datetime.now().strftime('%d %B %Y  %H:%M')}  •  Confidential"
+    )
+    foot.alignment              = WD_ALIGN_PARAGRAPH.CENTER
+    foot.runs[0].font.size      = Pt(8.5)
+    foot.runs[0].italic         = True
+    foot.runs[0].font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+    pir_dir   = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "pir")
+    )
+    os.makedirs(pir_dir, exist_ok=True)
+    file_path = os.path.join(pir_dir, f"{ticket_id}_PIR.docx")
+    doc.save(file_path)
+    return file_path

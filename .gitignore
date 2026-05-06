@@ -17,6 +17,8 @@ data/session_state.json
 data/noc_memory.db
 data/noc_memory.db-shm
 data/noc_memory.db-wal
+data/dedup.db
+data/pir/
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log

@@ -102,6 +102,7 @@ def save_and_advance(
     is_correlated:   bool,
     confidence,             # int | None
     status:          str,
+    pir_path:        str = "",
 ) -> None:
     """
     Append the current ticket to the processed log, reset HITL session state,
@@ -124,6 +125,7 @@ def save_and_advance(
         "SLA_Breached":       elapsed_secs > sla_limit,
         "Correlated_With":    correlated_with if is_correlated else "",
         "Confidence_Score":   str(confidence) if confidence is not None else "",
+        "PIR_Path":           pir_path,
     })
     save_processed_tickets(session_state.processed_tickets)
 
@@ -133,7 +135,7 @@ def save_and_advance(
     session_state.confidence_score      = None
     session_state.confidence_reason     = ""
     session_state.escalation_sent       = False
-    session_state.email_confirm_pending = False
+    session_state.email_pending         = None
 
     # Advance queue pointer
     session_state.ticket_index += 1
