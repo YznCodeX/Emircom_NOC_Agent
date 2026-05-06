@@ -1,5 +1,5 @@
 # Emircom NOC Agent — Project Report
-**Date:** April 19, 2026  
+**Date:** May 6, 2026  
 **Author:** Yazan  
 **Role:** Final semester student, AI major — Trainee at Emircom (unpaid)  
 **Supervisor:** TBD
@@ -206,8 +206,8 @@ Everything listed in Section 2 is functional and has been tested. The system can
 ## 7. Next Steps
 
 ### Immediate (Presentation Prep)
-1. Supervisor presentation — 12-slide deck ready to finalize
-2. Demo rehearsal — walk through full pipeline: alert in → Supervisor routes → Runbook matched → Escalation fires → GLPI ticket created with runbook
+1. Slack integration — post Critical approvals to a team channel (30 min, high demo value)
+2. Demo rehearsal — walk through full pipeline: alert in → Supervisor routes → Runbook matched → Escalation fires → GLPI ticket created → Slack notification
 3. Written report formatting (ST04/COOP requirements)
 
 ### After Supervisor Approval
@@ -242,16 +242,17 @@ Everything listed in Section 2 is functional and has been tested. The system can
 
 ## 9. Notes for Next Session
 
-- All major AI agents are now live: Supervisor, Runbook, Escalation, Chatbot
-- `streamlit/app.py` is now ~969 lines — heavy logic split into 5 sibling modules (persistence, constants, helpers, reports, chatbot); use flat imports (not `streamlit.module`) to avoid package name collision
-- Real runbooks can be dropped into `data/emircom_runbooks/` as JSON files — retrieval is already wired, no code needed
-- Mock queue is now 80 tickets (INC-3001–INC-3080); reset `data/session_state.json` to `{"ticket_index": 0}` to start from the beginning
-- Escalation emails go to `SHIFT_LEAD_EMAIL` env var (defaults to same Gmail box if not set)
-- `langchain_groq` must NOT be used — it deadlocks on Python 3.14; use `_LazyLLM` shim from `agent_graph.py`
-- Full technical documentation is in `PROJECT_REPORT.md` (v1.5)
-- GitHub repo: YznCodeX/Emircom_NOC_Agent (main branch, all commits pushed)
+- **React dashboard is fully complete** — run `cd frontend && npm run dev` (port 5173) + `uvicorn react.backend.main:app --port 8001 --reload`
+- All major AI agents are live: Supervisor, Runbook, Escalation, Chatbot
+- `streamlit/app.py` split into 5 sibling modules (persistence, constants, helpers, reports, chatbot) — use flat imports to avoid package name collision
+- Real runbooks → drop JSON files in `data/emircom_runbooks/` — RAG is wired, no code changes needed
+- Mock queue is 80 tickets (INC-3001–INC-3080); reset `data/session_state.json` to `{"ticket_index": 0}` to start from beginning
+- Escalation emails go to `SHIFT_LEAD_EMAIL` env var
+- `langchain_groq` must NOT be used — deadlocks on Python 3.14; use `_LazyLLM` shim from `agent_graph.py`
+- Full technical documentation is in `PROJECT_REPORT.md`
+- GitHub repo: YznCodeX/Emircom_NOC_Agent (main branch)
 
 ---
 
 *Report will be updated as the project progresses.*  
-*Last updated: April 19, 2026 (v1.5)*
+*Last updated: May 6, 2026 (v1.6)*

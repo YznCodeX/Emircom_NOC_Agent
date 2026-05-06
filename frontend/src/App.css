@@ -1,1 +1,5 @@
-/* NOC Dashboard - custom styles handled inline in App.jsx */
+/* NOC Dashboard - custom styles */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 35px rgba(239,68,68,0.8); }
+}

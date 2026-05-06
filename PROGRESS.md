@@ -250,7 +250,56 @@ Incoming Ticket
 
 ---
 
+### ✅ React Dashboard — Full Port (May 2026)
+**Files:** `frontend/src/` (pages + components) + `react/backend/main.py`
+
+Complete React + Vite frontend built across 6 stages:
+
+**Stage 1 — Foundation**
+- React Router v7 with sidebar `Navbar` and 5 routes: `/`, `/operations`, `/analytics`, `/chatbot`, `/reports`
+- Shared components: `SeverityBadge`, `StatCard`, `SLATimer`, `TicketRow`, `GLPINotificationPanel`
+- `constants.js` (SEV_COLORS, CAT_ICONS, SLA_MINUTES) + `utils.js` (generateEmailTemplate)
+
+**Stage 2 — Dashboard Banners**
+- Shift Briefing banner (blue) — LLM-generated queue summary on load via `GET /shift-briefing`
+- Trend Analysis banner (amber) — LLM pattern detection via `GET /trend-analysis` after each ticket action
+
+**Stage 3 — Live Operations Page**
+- 2-step approval wizard: Step 1 (Approve/Reject) → Step 2 (email confirmation card with severity-colored border, Send/Skip)
+- Escalation banner: pulsing red when Critical >5min or High >15min unacknowledged
+- Duplicate/correlation banners from agent response flags
+- 4 tabs: Summary / Raw Logs / 📖 Runbook / ✉️ Email Template
+
+**Stage 4 — Analytics Page**
+- 6 KPI cards: Total, Approved, Rejected, Critical, Avg Confidence, SLA Compliance %
+- 6 Recharts charts: category donut, severity bar, status-by-category stacked bar, confidence histogram, SLA grouped bar, ticket volume bar
+- Filterable audit log (Category / Severity / Status dropdowns)
+- PIR download section (lists files from `data/pir/`)
+
+**Stage 5 — Chatbot Page**
+- SSE streaming via `GET /chatbot/stream?message=...` FastAPI endpoint
+- 6 suggestion chips with pure-Python structured answers (bypasses LLM verbosity)
+- Paste Logs toggle, 10-turn history trimming, auto-scroll, blinking cursor while streaming
+- System prompt: last 30 processed + full pending queue injected fresh each call
+
+**Stage 6 — Reports Page**
+- Shift Handoff form (3 inputs) + Generate Report + Excel download
+- PIR list: fetches `GET /pir/list`, renders each `.docx` with `📥 Download` button
+
+**New backend endpoints added:**
+- `GET /shift-briefing` — LLM shift summary
+- `GET /trend-analysis` — LLM trend detection
+- `GET /chatbot/stream` — SSE streaming
+- `GET /pir/list` — lists PIR files
+- `GET /pir/download/{ticket_id}` — serves PIR .docx
+- Fixed: missing `datetime` import (broke `/handoff/export`)
+
+---
+
 ## Enhancements — Remaining (In Priority Order)
+
+### 🔲 Slack Integration
+Post Critical ticket approvals to a Slack channel via incoming webhook. ~30 min effort, high demo value.
 
 ### 🔲 Trend Analysis
 "This IP has had 12 incidents in the last 7 days." Needs historical data to be meaningful — better to build after getting real data.

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from datetime import datetime
 import json
 import pandas as pd
 import os
@@ -262,6 +263,60 @@ def export_handoff_excel():
     )
 
 
+@app.get("/shift-briefing")
+def get_shift_briefing():
+    """Return LLM-generated shift briefing summarising the current alert queue."""
+    try:
+        from src.agent_graph import llm
+        df = pd.read_csv(DATA_PATH)
+        processed_ids = {t["Ticket_ID"] for t in load_processed()}
+        pending = df[~df["Ticket_ID"].isin(processed_ids)]
+
+        total = len(pending)
+        by_sev = pending["Severity"].value_counts().to_dict() if total else {}
+        by_cat = pending["Category"].value_counts().to_dict() if total else {}
+
+        sev_summary = ", ".join(f"{v} {k}" for k, v in by_sev.items())
+        cat_summary = ", ".join(f"{k}: {v}" for k, v in by_cat.items())
+
+        prompt = (
+            f"You are an NOC shift briefing AI. Summarise the current alert queue in 2-3 sentences "
+            f"for the engineer starting their shift. Be concise and professional.\n\n"
+            f"Queue: {total} pending tickets. Severity breakdown: {sev_summary or 'none'}. "
+            f"Category breakdown: {cat_summary or 'none'}."
+        )
+        response = llm.invoke(prompt)
+        return {"briefing": response.content.strip()}
+    except Exception as e:
+        return {"briefing": f"Shift briefing unavailable: {e}"}
+
+
+@app.get("/trend-analysis")
+def get_trend_analysis():
+    """Return LLM trend analysis over the last 10 processed tickets."""
+    try:
+        from src.agent_graph import llm
+        processed = load_processed()
+        recent = processed[-10:] if len(processed) >= 3 else []
+        if not recent:
+            return {"trend": ""}
+
+        summary = "\n".join(
+            f"- {t['Ticket_ID']} | {t.get('Category','?')} | {t.get('Severity','?')} | {t.get('Status','?')}"
+            for t in recent
+        )
+        prompt = (
+            f"You are an NOC trend analysis AI. Review these recent tickets and identify any "
+            f"patterns, repeated failures, or escalating trends in 1-2 sentences. "
+            f"If nothing notable, reply with an empty string.\n\n{summary}"
+        )
+        response = llm.invoke(prompt)
+        text = response.content.strip()
+        return {"trend": text if len(text) > 10 else ""}
+    except Exception as e:
+        return {"trend": ""}
+
+
 class GLPIActionRequest(BaseModel):
     glpi_id: int
     action: str  # "approve" or "reject"
@@ -283,3 +338,149 @@ def glpi_action(req: GLPIActionRequest):
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@app.get("/pir/list")
+def list_pir_files():
+    pir_dir = "data/pir"
+    if not os.path.exists(pir_dir):
+        return []
+    files = [f for f in os.listdir(pir_dir) if f.endswith('.docx')]
+    return [{"filename": f, "ticket_id": f.replace('.docx', '')} for f in files]
+
+
+from fastapi import Query
+from fastapi.responses import StreamingResponse as SSEResponse
+import asyncio
+
+def _structured_answer(msg: str, pending_df, pending: list, processed: list) -> str | None:
+    """Return a Python-computed answer for known structured queries, or None to fall through to LLM."""
+    q = msg.lower().strip()
+
+    sev_counts = pending_df["Severity"].value_counts().to_dict() if not pending_df.empty else {}
+    crit_n = sev_counts.get("Critical", 0)
+    high_n = sev_counts.get("High", 0)
+    med_n  = sev_counts.get("Medium", 0)
+    low_n  = sev_counts.get("Low", 0)
+
+    # pending / queue
+    if any(k in q for k in ["pending", "queue", "still open", "not processed"]):
+        lines = [f"{len(pending)} pending — {crit_n} Critical, {high_n} High, {med_n} Medium, {low_n} Low."]
+        crits = pending_df[pending_df["Severity"] == "Critical"][["Ticket_ID", "Alert_Message"]].head(5)
+        for _, r in crits.iterrows():
+            lines.append(f"- {r['Ticket_ID']}: {str(r.get('Alert_Message',''))[:70]}")
+        return "\n".join(lines)
+
+    # critical tickets
+    if any(k in q for k in ["critical", "sev=critical"]):
+        crits = pending_df[pending_df["Severity"] == "Critical"][["Ticket_ID", "Alert_Message"]]
+        if crits.empty:
+            return "No Critical tickets in the pending queue."
+        lines = [f"{len(crits)} Critical tickets pending:"]
+        for _, r in crits.iterrows():
+            lines.append(f"- {r['Ticket_ID']}: {str(r.get('Alert_Message',''))[:70]}")
+        return "\n".join(lines)
+
+    # sla breaches
+    if any(k in q for k in ["sla", "breach", "overdue"]):
+        breached = [t for t in processed if str(t.get("SLA_Breached", "")).lower() in ("true", "1", "yes")]
+        if not breached:
+            return "No SLA breaches recorded in processed tickets."
+        lines = [f"{len(breached)} SLA breach(es) in processed tickets:"]
+        for t in breached[-5:]:
+            lines.append(f"- {t['Ticket_ID']}: {t.get('Severity','?')} | {t.get('Category','?')}")
+        return "\n".join(lines)
+
+    # hardware failures
+    if any(k in q for k in ["hardware", "hw failure", "hardware fail"]):
+        hw = pending_df[pending_df["Category"].str.lower().str.contains("hardware", na=False)][["Ticket_ID", "Severity", "Alert_Message"]]
+        if hw.empty:
+            return "No hardware tickets in the pending queue."
+        lines = [f"{len(hw)} hardware tickets pending:"]
+        for _, r in hw.iterrows():
+            lines.append(f"- {r['Ticket_ID']} [{r['Severity']}]: {str(r.get('Alert_Message',''))[:65]}")
+        return "\n".join(lines)
+
+    # team / category breakdown
+    if any(k in q for k in ["team", "most ticket", "category", "breakdown"]):
+        if pending_df.empty:
+            return "Queue is empty."
+        cat_counts = pending_df["Category"].value_counts()
+        lines = [f"Pending tickets by category ({len(pending)} total):"]
+        for cat, cnt in cat_counts.items():
+            lines.append(f"- {cat}: {cnt}")
+        return "\n".join(lines)
+
+    # shift summary
+    if any(k in q for k in ["summarize", "summary", "shift", "briefing"]):
+        lines = [
+            f"Shift snapshot — {len(pending)} pending, {len(processed)} processed.",
+            f"Pending: {crit_n} Critical, {high_n} High, {med_n} Medium, {low_n} Low.",
+        ]
+        if processed:
+            approved = sum(1 for t in processed if t.get("Status") == "Approved")
+            lines.append(f"Processed: {approved} approved, {len(processed)-approved} rejected.")
+        crits = pending_df[pending_df["Severity"] == "Critical"][["Ticket_ID"]].head(3)
+        if not crits.empty:
+            lines.append("Top Critical: " + ", ".join(crits["Ticket_ID"].tolist()))
+        return "\n".join(lines)
+
+    return None  # fall through to LLM
+
+
+@app.get("/chatbot/stream")
+async def chatbot_stream(message: str = Query(...)):
+    from src.agent_graph import llm
+    from datetime import datetime
+
+    processed = load_processed()
+    df = pd.read_csv(DATA_PATH)
+    processed_ids = {t["Ticket_ID"] for t in processed}
+    pending_df = df[~df["Ticket_ID"].isin(processed_ids)]
+    pending = pending_df.to_dict(orient="records")
+
+    # Try structured answer first (no LLM, always correct format)
+    structured = _structured_answer(message, pending_df, pending, processed)
+    if structured:
+        def generate_static():
+            yield f"data: {structured}\n\n"
+            yield "data: [DONE]\n\n"
+        return SSEResponse(generate_static(), media_type="text/event-stream",
+                           headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # LLM fallback for open-ended questions
+    proc_lines = [
+        f"  [{t.get('Ticket_ID','')}] {t.get('Category','')} | Sev={t.get('Severity','')} | Status={t.get('Status','')} | Confidence={t.get('Confidence_Score','')}% | SLA_Breached={t.get('SLA_Breached','')}"
+        for t in processed[-30:]
+    ] or ["None yet."]
+    pend_lines = [
+        f"  [{t.get('Ticket_ID','')}] Sev={t.get('Severity','')} | {str(t.get('Alert_Message',''))[:80]}"
+        for t in pending
+    ] or ["Queue empty."]
+
+    system_prompt = f"""You are the Emircom NOC AI Assistant.
+Current time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+PROCESSED TICKETS ({len(processed)} total):
+{chr(10).join(proc_lines)}
+
+PENDING QUEUE ({len(pending)} tickets):
+{chr(10).join(pend_lines)}
+
+SLA thresholds: Critical=15min | High=1hr | Medium=4hr | Low=24hr
+
+Reply concisely. NOC scope only. Decline off-topic questions in one line."""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message},
+    ]
+
+    def generate():
+        for chunk in llm.stream(messages):
+            if chunk.content:
+                yield f"data: {chunk.content}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return SSEResponse(generate(), media_type="text/event-stream",
+                       headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
