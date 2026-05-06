@@ -77,14 +77,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", $merakiCmd -Window
 Start-Sleep 2
 Write-OK "Meraki receiver started  →  http://localhost:8002/webhook/meraki"
 
-# ── 6. Streamlit Dashboard ───────────────────────────────────────────────────
-Write-Step "Starting Streamlit NOC Dashboard on port 8501..."
-$streamlitCmd = "Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; streamlit run streamlit\app.py --server.port 8501; Read-Host 'Press Enter to close'"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $streamlitCmd -WindowStyle Normal
-Start-Sleep 4
-Write-OK "Streamlit started  →  http://localhost:8501"
-
-# ── 7. React Frontend ────────────────────────────────────────────────────────
+# ── 6. React Frontend ────────────────────────────────────────────────────────
 Write-Step "Starting React frontend on port 5173..."
 $frontendCmd = "Set-Location '$ROOT\frontend'; npm run dev; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd -WindowStyle Normal
@@ -96,7 +89,6 @@ Write-Host ""
 Write-Host "======================================================" -ForegroundColor DarkGray
 Write-Host "  All services are running!" -ForegroundColor White
 Write-Host ""
-Write-Host "  Streamlit Dashboard ->  http://localhost:8501" -ForegroundColor Cyan
 Write-Host "  React Dashboard     ->  http://localhost:5173" -ForegroundColor Cyan
 Write-Host "  GLPI                ->  http://localhost        (admin/admin)" -ForegroundColor Cyan
 Write-Host "  API Docs            ->  http://localhost:8001/docs" -ForegroundColor Cyan
