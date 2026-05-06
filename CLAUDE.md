@@ -44,8 +44,27 @@ data/
   session_state.json    # persists ticket_index across restarts
 
 frontend/               # React + Vite dashboard (FastAPI backend on 8001)
-api/
-  main.py               # FastAPI backend for React frontend
+  src/
+    App.jsx             # BrowserRouter + Routes + Navbar layout shell
+    constants.js        # API, SLA_MINUTES, SEV_COLORS, CAT_ICONS, TEAM_NAMES/EMAILS
+    utils.js            # generateEmailTemplate()
+    components/
+      Navbar.jsx        # Sidebar nav — links to all 5 pages, live clock
+      SeverityBadge.jsx
+      StatCard.jsx
+      SLATimer.jsx
+      TicketRow.jsx
+      GLPINotificationPanel.jsx
+    pages/
+      Dashboard.jsx     # Stat cards, Shift Briefing banner, alert queue, GLPI polling
+      Operations.jsx    # HITL page — 4 tabs, 2-step wizard, escalation/dupe banners
+      Analytics.jsx     # 6 KPI cards, 6 Recharts charts, audit log, PIR downloads
+      Chatbot.jsx       # SSE streaming chat, suggestion chips, Paste Logs
+      Reports.jsx       # Shift handoff form, Excel export, PIR list
+
+react/
+  backend/
+    main.py             # FastAPI backend for React frontend (port 8001)
 ```
 
 ---
@@ -183,7 +202,7 @@ echo 'Profile assigned';
 | Service | Port | Start Command |
 |---------|------|---------------|
 | Streamlit | 8501 | `venv\Scripts\streamlit run streamlit/app.py` |
-| FastAPI (React backend) | 8001 | `venv\Scripts\uvicorn api.main:app --port 8001` |
+| FastAPI (React backend) | 8001 | `venv\Scripts\uvicorn react.backend.main:app --port 8001 --reload` |
 | React frontend | 5173 | `cd frontend && npm run dev` |
 | GLPI agent | — | `venv\Scripts\python glpi/glpi_agent.py` |
 | Meraki webhook | 8003 | `venv\Scripts\uvicorn meraki.webhook_receiver:app --port 8003` |
