@@ -86,7 +86,7 @@ Write-OK "Streamlit started  →  http://localhost:8501"
 
 # ── 7. React Frontend ────────────────────────────────────────────────────────
 Write-Step "Starting React frontend on port 5173..."
-$frontendCmd = "Set-Location '$ROOT\react\frontend'; npm run dev; Read-Host 'Press Enter to close'"
+$frontendCmd = "Set-Location '$ROOT\frontend'; npm run dev; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd -WindowStyle Normal
 Start-Sleep 4
 Write-OK "Frontend started  →  http://localhost:5173"
