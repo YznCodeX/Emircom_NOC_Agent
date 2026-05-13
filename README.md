@@ -8,15 +8,15 @@ An AI-powered Network Operations Centre (NOC) triage system built as a final-yea
 
 | Dashboard | Operations (HITL) |
 |-----------|------------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Operations](docs/screenshots/operations.png) |
+| ![Dashboard](docs/screenshots/Dashboard.png) | ![Operations](docs/screenshots/Operations.png) |
 
-| Analytics | AI Chat |
-|-----------|---------|
-| ![Analytics](docs/screenshots/analytics.png) | ![AI Chat](docs/screenshots/chatbot.png) |
+| AI Chat | Email Notification |
+|---------|-------------------|
+| ![AI Chat](docs/screenshots/chatbot.png) | ![Email](docs/screenshots/email.png) |
 
-| Email Notification | Reports |
-|-------------------|---------|
-| ![Email](docs/screenshots/email.png) | ![Reports](docs/screenshots/reports.png) |
+| Reports |
+|---------|
+| ![Reports](docs/screenshots/reports.png) |
 
 ---
 
