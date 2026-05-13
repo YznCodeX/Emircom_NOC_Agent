@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
-import { API, SEV_COLORS, CAT_ICONS } from '../constants'
+import { API, SEV_COLORS, CAT_ICONS, SLA_MINUTES } from '../constants'
 import { generateEmailTemplate } from '../utils'
 import SLATimer from '../components/SLATimer'
 import SeverityBadge from '../components/SeverityBadge'
@@ -65,11 +65,16 @@ export default function Operations() {
 
   async function handleAction(action) {
     try {
+      const resolvedSev = analysis?.analysis?.Severity || ticket.Severity || 'Medium'
+      const elapsedSecs = (Date.now() - openedAt) / 1000
+      const slaBreached = elapsedSecs > (SLA_MINUTES[resolvedSev] || 240) * 60
       await axios.post(`${API}/tickets/approve`, {
         ticket_id: ticket.Ticket_ID,
         category: ticket.Category,
-        severity: analysis?.Severity || ticket.Severity || 'Medium',
+        severity: resolvedSev,
         action,
+        confidence_score: analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0,
+        sla_breached: slaBreached,
       })
       setActionDone(action)
     } catch (e) {
@@ -79,12 +84,12 @@ export default function Operations() {
 
   function copyEmail() {
     if (!analysis) return
-    navigator.clipboard.writeText(generateEmailTemplate(ticket, analysis))
+    navigator.clipboard.writeText(generateEmailTemplate(ticket, analysis.analysis || {}))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const sev = analysis?.Severity || ticket?.Severity || 'Medium'
+  const sev = analysis?.analysis?.Severity || ticket?.Severity || 'Medium'
   const c = SEV_COLORS[sev] || SEV_COLORS.Medium
 
   // ── Empty state ──
@@ -222,10 +227,10 @@ export default function Operations() {
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                     {[
-                      ['Affected Node', analysis.Affected_Node],
-                      ['Categorization', analysis.Categorization],
-                      ['Confidence', `${analysis.Confidence_Score ?? '—'}%`],
-                      ['Routing Team', analysis.Routing_Team || ticket.Category],
+                      ['Affected Node', analysis.analysis?.Affected_Node],
+                      ['Categorization', analysis.analysis?.Categorization],
+                      ['Confidence', `${analysis.analysis?.Confidence_Score ?? analysis.confidence_score ?? '—'}%`],
+                      ['Routing Team', analysis.analysis?.Routing_Team || ticket.Category],
                     ].map(([label, val]) => (
                       <div key={label} style={{ background: '#0a0e1a', border: '1px solid #1f2937', borderRadius: 8, padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{label}</div>
@@ -235,26 +240,26 @@ export default function Operations() {
                   </div>
 
                   {/* Confidence bar */}
-                  {analysis.Confidence_Score != null && (
+                  {(analysis.analysis?.Confidence_Score ?? analysis.confidence_score) != null && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span style={{ fontSize: 12, color: '#4b5563', textTransform: 'uppercase', letterSpacing: 1 }}>AI Confidence</span>
-                        <span style={{ fontSize: 12, color: c.text }}>{analysis.Confidence_Score}%</span>
+                        <span style={{ fontSize: 12, color: c.text }}>{analysis.analysis?.Confidence_Score ?? analysis.confidence_score}%</span>
                       </div>
                       <div style={{ background: '#1f2937', borderRadius: 999, height: 6 }}>
-                        <div style={{ height: 6, borderRadius: 999, background: c.dot, width: `${analysis.Confidence_Score}%`, transition: 'width 0.6s ease' }} />
+                        <div style={{ height: 6, borderRadius: 999, background: c.dot, width: `${analysis.analysis?.Confidence_Score ?? analysis.confidence_score}%`, transition: 'width 0.6s ease' }} />
                       </div>
-                      {analysis.Confidence_Reason && (
-                        <div style={{ fontSize: 12, color: '#4b5563', marginTop: 6 }}>{analysis.Confidence_Reason}</div>
+                      {analysis.analysis?.Confidence_Reason && (
+                        <div style={{ fontSize: 12, color: '#4b5563', marginTop: 6 }}>{analysis.analysis.Confidence_Reason}</div>
                       )}
                     </div>
                   )}
 
                   {[
-                    ['🔍 Symptom', analysis.Symptom_Description],
-                    ['🌱 Root Cause', analysis.Root_Cause],
-                    ['💼 Business Impact', analysis.Business_Impact],
-                    ['🛠 Recommended Action', analysis.Recommended_Action],
+                    ['🔍 Symptom', analysis.analysis?.Symptom_Description],
+                    ['🌱 Root Cause', analysis.analysis?.Root_Cause],
+                    ['💼 Business Impact', analysis.analysis?.Business_Impact],
+                    ['🛠 Recommended Action', analysis.analysis?.Recommended_Action],
                   ].map(([label, val]) => val ? (
                     <div key={label} style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 12, color: '#4b5563', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{label}</div>
@@ -281,11 +286,18 @@ export default function Operations() {
               {activeTab === 2 && (
                 <div>
                   {analysis.runbook_match ? (
-                    <pre style={{
-                      background: '#0a0e1a', border: '1px solid #1f2937', borderRadius: 8,
-                      padding: 16, fontSize: 13, color: '#d1d5db', lineHeight: 1.8,
-                      margin: 0, whiteSpace: 'pre-wrap',
-                    }}>{analysis.runbook_match}</pre>
+                    <>
+                      <pre style={{
+                        background: '#0a0e1a', border: '1px solid #1f2937', borderRadius: 8,
+                        padding: 16, fontSize: 13, color: '#d1d5db', lineHeight: 1.8,
+                        margin: 0, whiteSpace: 'pre-wrap',
+                      }}>{analysis.runbook_match}</pre>
+                      {analysis.supervisor_reason && (
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 6, fontSize: 12, color: '#93c5fd' }}>
+                          🧠 Supervisor: {analysis.supervisor_reason}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div style={{ textAlign: 'center', padding: 40, color: '#4b5563' }}>
                       <div style={{ fontSize: 32, marginBottom: 12 }}>📖</div>
@@ -310,7 +322,7 @@ export default function Operations() {
                     background: '#0a0e1a', border: '1px solid #1f2937', borderRadius: 8,
                     padding: 16, fontSize: 13, color: '#d1d5db', lineHeight: 1.8,
                     margin: 0, whiteSpace: 'pre-wrap',
-                  }}>{generateEmailTemplate(ticket, analysis)}</pre>
+                  }}>{generateEmailTemplate(ticket, analysis.analysis || {})}</pre>
                 </div>
               )}
             </>
@@ -353,7 +365,7 @@ export default function Operations() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                 {[
-                  ['To', `noc-${(analysis.analysis?.Routing_Team || ticket.Category || 'team').toLowerCase().replace(/\s+/g, '-')}@emircom.ae`],
+                  ['To', `noc-${(analysis.analysis?.Routing_Team || ticket.Category || 'team').toLowerCase().replace(/\s+/g, '-')}@emircom.com`],
                   ['Subject', `[NOC ${sev}] ${ticket.Ticket_ID} — ${ticket.Alert_Message || 'Alert'}`],
                   ['Team', analysis.analysis?.Routing_Team || ticket.Category || '—'],
                   ['Affected Node', analysis.analysis?.Affected_Node || '—'],
