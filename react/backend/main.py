@@ -94,13 +94,23 @@ def analyze_ticket(req: AnalyzeRequest):
     except Exception:
         analysis = {"raw": analysis_raw}
 
+    # Strip self-references from correlated_with — can occur when a ticket is
+    # re-analyzed and LangGraph resumes from a stale SQLite checkpoint.
+    raw_corr = state.values.get("correlated_with", "") or ""
+    corr_ids = [c.strip() for c in raw_corr.split(",") if c.strip() and c.strip() != req.ticket_id]
+    correlated_with = ", ".join(corr_ids)
+    is_correlated = state.values.get("is_correlated", False) and bool(correlated_with)
+
     return {
         "ticket_id": req.ticket_id,
         "analysis": analysis,
         "is_duplicate": state.values.get("is_duplicate", False),
-        "is_correlated": state.values.get("is_correlated", False),
-        "correlated_with": state.values.get("correlated_with", ""),
+        "duplicate_reason": state.values.get("duplicate_reason", ""),
+        "is_correlated": is_correlated,
+        "correlated_with": correlated_with,
         "confidence_score": state.values.get("confidence_score", 0),
+        "runbook_match": state.values.get("runbook_match", ""),
+        "supervisor_reason": state.values.get("supervisor_reason", ""),
         "next_node": list(state.next) if state.next else [],
     }
 
@@ -110,6 +120,8 @@ class ApproveRequest(BaseModel):
     category: str
     severity: str
     action: str  # "approve" or "reject"
+    confidence_score: int = 0
+    sla_breached: bool = False
 
 
 @app.post("/tickets/approve")
@@ -132,8 +144,8 @@ def approve_ticket(req: ApproveRequest):
         "Severity": req.severity,
         "Status": "Approved" if req.action == "approve" else "Rejected",
         "GLPI_Ticket": glpi_id,
-        "SLA_Breached": False,
-        "Confidence_Score": "",
+        "SLA_Breached": req.sla_breached,
+        "Confidence_Score": str(req.confidence_score) if req.confidence_score else "",
     })
     save_processed(processed)
 
@@ -144,8 +156,15 @@ def approve_ticket(req: ApproveRequest):
 def get_stats():
     """Return summary stats for the dashboard."""
     processed = load_processed()
+    processed_ids = {t["Ticket_ID"] for t in processed}
+    try:
+        df = pd.read_csv(DATA_PATH)
+        pending = len(df[~df["Ticket_ID"].isin(processed_ids)])
+    except Exception:
+        pending = 0
     return {
         "total": len(processed),
+        "pending": pending,
         "approved": sum(1 for t in processed if t["Status"] == "Approved"),
         "rejected": sum(1 for t in processed if t["Status"] == "Rejected"),
         "critical": sum(1 for t in processed if t.get("Severity") == "Critical"),

@@ -606,10 +606,22 @@ def remedy_node(state: AgentState):
     if not state.get("skip_email", False):
         try:
             from src.email_sender import send_alert_email
+            # Use the specialist team category (e.g. "Network") for email routing,
+            # not the LLM sub-categorization (e.g. "Routing") which won't match TEAM_ROUTING.
+            routing_category = state.get("category", categorization)
+
+            # Strip self-references from correlated_with before including in email.
+            raw_corr = state.get("correlated_with", "") or ""
+            tid = state.get("ticket_id", "")
+            clean_corr = ", ".join(
+                c.strip() for c in raw_corr.split(",")
+                if c.strip() and c.strip() != tid
+            )
+
             send_alert_email(
-                ticket_id          = state.get("ticket_id", ""),
+                ticket_id          = tid,
                 glpi_ticket_id     = str(glpi_id),
-                category           = categorization,
+                category           = routing_category,
                 severity           = severity,
                 affected_node      = affected_node,
                 symptom            = symptom,
@@ -617,7 +629,7 @@ def remedy_node(state: AgentState):
                 recommended_action = recommended_action,
                 business_impact    = business_impact,
                 confidence_score   = str(confidence),
-                correlated_with    = state.get("correlated_with", ""),
+                correlated_with    = clean_corr,
             )
         except Exception as e:
             print(f"[{state['ticket_id']}] ⚠️ Email error: {e}")
