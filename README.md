@@ -85,8 +85,8 @@ Alert Input
 | Layer | Technology |
 |-------|-----------|
 | Agent pipeline | [LangGraph](https://langchain-ai.github.io/langgraph/) + raw Groq SDK (llama-3.3-70b-versatile) |
-| Streamlit UI | Python 3.14, Streamlit 1.x — modular (`streamlit/`) |
-| React dashboard | React 18 + Vite + Recharts (`frontend/`) |
+| React dashboard | React 19 + Vite + Recharts (`frontend/`) — primary UI |
+| Streamlit UI | Python 3.14, Streamlit 1.x — reference UI (`streamlit/`) |
 | REST backend | FastAPI (port 8001) |
 | ITSM ticketing | GLPI (Docker) + REST API |
 | Email | Gmail SMTP via App Password |
@@ -196,7 +196,6 @@ docker start mariadb glpi
 This starts:
 | Service | URL |
 |---------|-----|
-| Streamlit UI | http://localhost:8501 |
 | React dashboard | http://localhost:5173 |
 | FastAPI backend | http://localhost:8001 |
 | GLPI | http://localhost |
@@ -221,8 +220,8 @@ venv\Scripts\python glpi/glpi_agent.py
 
 ## How to Use
 
-1. Open **http://localhost:8501** (Streamlit) or **http://localhost:5173** (React)
-2. Click **▶ Analyse Next Ticket** — the pipeline runs through triage → supervisor → specialist → runbook → correlation, then pauses
+1. Open **http://localhost:5173** (React dashboard)
+2. Click **▶ Process** on any ticket in the queue — the pipeline runs through triage → supervisor → specialist → runbook → correlation, then pauses
 3. Review the **HITL panel**: Summary / Raw Logs / Runbook / Email Template tabs
 4. Click **Approve & Escalate** → confirm the email notification → ticket is created in GLPI and email is sent
 5. Or click **Drop** to suppress a duplicate
