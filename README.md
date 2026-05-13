@@ -10,13 +10,13 @@ An AI-powered Network Operations Centre (NOC) triage system built as a final-yea
 |-----------|------------------|
 | ![Dashboard](docs/screenshots/Dashboard.png) | ![Operations](docs/screenshots/Operations.png) |
 
-| AI Chat | Email Notification |
-|---------|-------------------|
-| ![AI Chat](docs/screenshots/chatbot.png) | ![Email](docs/screenshots/email.png) |
+| Analytics | AI Chat |
+|-----------|---------|
+| ![Analytics](docs/screenshots/Analytics.png) | ![AI Chat](docs/screenshots/chatbot.png) |
 
-| Reports |
-|---------|
-| ![Reports](docs/screenshots/reports.png) |
+| Email Notification | Reports |
+|-------------------|---------|
+| ![Email](docs/screenshots/email.png) | ![Reports](docs/screenshots/reports.png) |
 
 ---
 
