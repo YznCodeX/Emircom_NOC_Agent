@@ -58,14 +58,14 @@ Write-OK "GLPI containers started  →  http://localhost  (login: glpi / glpi)"
 
 # ── 3. FastAPI Backend ───────────────────────────────────────────────────────
 Write-Step "Starting FastAPI backend on port 8001..."
-$backendCmd = "Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python -m uvicorn react.backend.main:app --port 8001 --reload; Read-Host 'Press Enter to close'"
+$backendCmd = "`$host.UI.RawUI.WindowTitle = '🚀 NOC Backend — Port 8001'; Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python -m uvicorn react.backend.main:app --port 8001 --reload; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd -WindowStyle Normal
 Start-Sleep 3
 Write-OK "Backend started  →  http://localhost:8001"
 
 # ── 4. GLPI Agent Worker ─────────────────────────────────────────────────────
 Write-Step "Starting GLPI NOC Agent worker..."
-$agentCmd = "Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python glpi\glpi_agent.py; Read-Host 'Press Enter to close'"
+$agentCmd = "`$host.UI.RawUI.WindowTitle = '🔄 NOC GLPI Agent'; Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python glpi\glpi_agent.py; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $agentCmd -WindowStyle Normal
 Start-Sleep 2
 Write-OK "GLPI Agent started (polling every 15 seconds)"
@@ -79,7 +79,7 @@ Write-OK "Meraki receiver started  →  http://localhost:8002/webhook/meraki"
 
 # ── 6. React Frontend ────────────────────────────────────────────────────────
 Write-Step "Starting React frontend on port 5173..."
-$frontendCmd = "Set-Location '$ROOT\frontend'; npm run dev; Read-Host 'Press Enter to close'"
+$frontendCmd = "`$host.UI.RawUI.WindowTitle = '⚛️ NOC React Frontend'; Set-Location '$ROOT\frontend'; npm run dev; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd -WindowStyle Normal
 Start-Sleep 4
 Write-OK "Frontend started  →  http://localhost:5173"
