@@ -68,7 +68,7 @@ export default function Operations() {
     return () => clearInterval(interval)
   }, [analysis, escalationShown, openedAt, ticket?.Severity])
 
-  async function handleAction(action) {
+  async function handleApprove() {
     try {
       const resolvedSev = analysis?.analysis?.Severity || ticket.Severity || 'Medium'
       const elapsedSecs = (Date.now() - openedAt) / 1000
@@ -77,13 +77,33 @@ export default function Operations() {
         ticket_id: ticket.Ticket_ID,
         category: ticket.Category,
         severity: resolvedSev,
-        action,
+        action: 'approve',
         confidence_score: analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0,
         sla_breached: slaBreached,
         send_email: false,
       })
       if (res.data?.glpi_ticket) setGlpiTicketId(String(res.data.glpi_ticket))
-      setActionDone(action)
+      setStep2(true)
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Action failed.')
+    }
+  }
+
+  async function handleReject() {
+    try {
+      const resolvedSev = analysis?.analysis?.Severity || ticket.Severity || 'Medium'
+      const elapsedSecs = (Date.now() - openedAt) / 1000
+      const slaBreached = elapsedSecs > (SLA_MINUTES[resolvedSev] || 240) * 60
+      await axios.post(`${API}/tickets/approve`, {
+        ticket_id: ticket.Ticket_ID,
+        category: ticket.Category,
+        severity: resolvedSev,
+        action: 'reject',
+        confidence_score: analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0,
+        sla_breached: slaBreached,
+        send_email: false,
+      })
+      setActionDone('reject')
     } catch (e) {
       setError(e.response?.data?.detail || 'Action failed.')
     }
@@ -457,11 +477,11 @@ export default function Operations() {
           {/* Step 1 */}
           {!step2 && (
             <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={async () => { await handleAction('approve'); setStep2(true) }} style={{
+              <button onClick={handleApprove} style={{
                 flex: 1, padding: '14px 0', background: '#065f46', color: '#6ee7b7',
                 border: '1px solid #047857', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 15,
               }}>✅ Approve & Escalate</button>
-              <button onClick={() => handleAction('reject')} style={{
+              <button onClick={handleReject} style={{
                 flex: 1, padding: '14px 0', background: '#450a0a', color: '#fca5a5',
                 border: '1px solid #7f1d1d', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 15,
               }}>❌ Reject</button>
@@ -494,11 +514,11 @@ export default function Operations() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => { handleSendEmail(); setStep2(false) }} style={{
+                <button onClick={() => { handleSendEmail(); setStep2(false); setActionDone('approve') }} style={{
                   flex: 2, padding: '13px 0', background: '#1e3a5f', color: '#93c5fd',
                   border: '1px solid #3b82f6', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14,
                 }}>✉️ Send Notification</button>
-                <button onClick={() => setStep2(false)} style={{
+                <button onClick={() => { setStep2(false); setActionDone('approve') }} style={{
                   flex: 1, padding: '13px 0', background: '#1f2937', color: '#6b7280',
                   border: '1px solid #374151', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
                 }}>Skip</button>
