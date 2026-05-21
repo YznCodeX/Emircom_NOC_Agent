@@ -68,7 +68,7 @@ export default function Operations() {
     return () => clearInterval(interval)
   }, [analysis, escalationShown, openedAt, ticket?.Severity])
 
-  async function handleAction(action, sendEmail = true) {
+  async function handleAction(action) {
     try {
       const resolvedSev = analysis?.analysis?.Severity || ticket.Severity || 'Medium'
       const elapsedSecs = (Date.now() - openedAt) / 1000
@@ -80,12 +80,32 @@ export default function Operations() {
         action,
         confidence_score: analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0,
         sla_breached: slaBreached,
-        send_email: sendEmail,
+        send_email: false,
       })
       if (res.data?.glpi_ticket) setGlpiTicketId(String(res.data.glpi_ticket))
       setActionDone(action)
     } catch (e) {
       setError(e.response?.data?.detail || 'Action failed.')
+    }
+  }
+
+  async function handleSendEmail() {
+    try {
+      await axios.post(`${API}/tickets/notify`, {
+        ticket_id: ticket.Ticket_ID,
+        glpi_ticket_id: glpiTicketId || '',
+        category: ticket.Category,
+        severity: analysis?.analysis?.Severity || ticket.Severity || 'Medium',
+        affected_node: analysis?.analysis?.Affected_Node || '—',
+        symptom: analysis?.analysis?.Symptom_Description || '',
+        root_cause: analysis?.analysis?.Root_Cause || '',
+        recommended_action: analysis?.analysis?.Recommended_Action || '',
+        business_impact: analysis?.analysis?.Business_Impact || '',
+        confidence_score: String(analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0),
+        correlated_with: analysis?.correlated_with || '',
+      })
+    } catch (e) {
+      setError('Email failed — check backend logs.')
     }
   }
 
@@ -437,7 +457,7 @@ export default function Operations() {
           {/* Step 1 */}
           {!step2 && (
             <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={() => setStep2(true)} style={{
+              <button onClick={async () => { await handleAction('approve'); setStep2(true) }} style={{
                 flex: 1, padding: '14px 0', background: '#065f46', color: '#6ee7b7',
                 border: '1px solid #047857', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 15,
               }}>✅ Approve & Escalate</button>
@@ -474,18 +494,14 @@ export default function Operations() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => handleAction('approve', true)} style={{
+                <button onClick={() => { handleSendEmail(); setStep2(false) }} style={{
                   flex: 2, padding: '13px 0', background: '#1e3a5f', color: '#93c5fd',
                   border: '1px solid #3b82f6', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14,
                 }}>✉️ Send Notification</button>
-                <button onClick={() => handleAction('approve', false)} style={{
+                <button onClick={() => setStep2(false)} style={{
                   flex: 1, padding: '13px 0', background: '#1f2937', color: '#6b7280',
                   border: '1px solid #374151', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
                 }}>Skip</button>
-                <button onClick={() => setStep2(false)} style={{
-                  flex: 1, padding: '13px 0', background: 'none', color: '#4b5563',
-                  border: '1px solid #1f2937', borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                }}>← Back</button>
               </div>
             </div>
           )}

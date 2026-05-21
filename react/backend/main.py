@@ -305,6 +305,43 @@ def approve_ticket(req: ApproveRequest):
     return {"status": "ok", "glpi_ticket": glpi_id}
 
 
+class NotifyRequest(BaseModel):
+    ticket_id: str
+    glpi_ticket_id: str
+    category: str
+    severity: str
+    affected_node: str
+    symptom: str
+    root_cause: str
+    recommended_action: str
+    business_impact: str
+    confidence_score: str = "0"
+    correlated_with: str = ""
+
+
+@app.post("/tickets/notify")
+def notify_ticket(req: NotifyRequest):
+    """Send the NOC alert email for an already-approved ticket."""
+    try:
+        from src.email_sender import send_alert_email
+        sent = send_alert_email(
+            ticket_id=req.ticket_id,
+            glpi_ticket_id=req.glpi_ticket_id,
+            category=req.category,
+            severity=req.severity,
+            affected_node=req.affected_node,
+            symptom=req.symptom,
+            root_cause=req.root_cause,
+            recommended_action=req.recommended_action,
+            business_impact=req.business_impact,
+            confidence_score=req.confidence_score,
+            correlated_with=req.correlated_with,
+        )
+        return {"status": "ok" if sent else "skipped"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/stats")
 def get_stats():
     """Return summary stats for the dashboard."""
