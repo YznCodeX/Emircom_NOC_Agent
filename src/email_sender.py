@@ -17,12 +17,14 @@ load_dotenv()
 GMAIL_USER     = os.getenv("GMAIL_USER", "emircom.noc.agent@gmail.com")
 GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 
+NOC_ENGINEER_EMAIL = os.getenv("NOC_ENGINEER_EMAIL", "rifd.project.ai@gmail.com")
+
 TEAM_ROUTING = {
-    "Network":     {"team": "NOC Network Team",        "email": "emircom.noc.agent@gmail.com"},
-    "Security":    {"team": "NOC Security Team (SOC)", "email": "emircom.noc.agent@gmail.com"},
-    "Hardware":    {"team": "NOC Field Engineering",   "email": "emircom.noc.agent@gmail.com"},
-    "Cloud":       {"team": "NOC Cloud Team",          "email": "emircom.noc.agent@gmail.com"},
-    "Application": {"team": "NOC Application Support", "email": "emircom.noc.agent@gmail.com"},
+    "Network":     {"team": "NOC Network Team",        "email": NOC_ENGINEER_EMAIL},
+    "Security":    {"team": "NOC Security Team (SOC)", "email": NOC_ENGINEER_EMAIL},
+    "Hardware":    {"team": "NOC Field Engineering",   "email": NOC_ENGINEER_EMAIL},
+    "Cloud":       {"team": "NOC Cloud Team",          "email": NOC_ENGINEER_EMAIL},
+    "Application": {"team": "NOC Application Support", "email": NOC_ENGINEER_EMAIL},
 }
 
 SEVERITY_EMOJI = {

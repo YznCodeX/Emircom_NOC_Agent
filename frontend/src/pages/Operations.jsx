@@ -24,6 +24,11 @@ export default function Operations() {
   const [skipEmail, setSkipEmail] = useState(false)
   const [escalationShown, setEscalationShown] = useState(false)
   const [showEscBanner, setShowEscBanner] = useState(false)
+  const [glpiTicketId, setGlpiTicketId] = useState(null)
+  const [showResolvePanel, setShowResolvePanel] = useState(false)
+  const [resolveNote, setResolveNote] = useState('')
+  const [resolving, setResolving] = useState(false)
+  const [resolved, setResolved] = useState(false)
 
   useEffect(() => {
     if (!ticket) return
@@ -63,22 +68,42 @@ export default function Operations() {
     return () => clearInterval(interval)
   }, [analysis, escalationShown, openedAt, ticket?.Severity])
 
-  async function handleAction(action) {
+  async function handleAction(action, sendEmail = true) {
     try {
       const resolvedSev = analysis?.analysis?.Severity || ticket.Severity || 'Medium'
       const elapsedSecs = (Date.now() - openedAt) / 1000
       const slaBreached = elapsedSecs > (SLA_MINUTES[resolvedSev] || 240) * 60
-      await axios.post(`${API}/tickets/approve`, {
+      const res = await axios.post(`${API}/tickets/approve`, {
         ticket_id: ticket.Ticket_ID,
         category: ticket.Category,
         severity: resolvedSev,
         action,
         confidence_score: analysis?.analysis?.Confidence_Score ?? analysis?.confidence_score ?? 0,
         sla_breached: slaBreached,
+        send_email: sendEmail,
       })
+      if (res.data?.glpi_ticket) setGlpiTicketId(String(res.data.glpi_ticket))
       setActionDone(action)
     } catch (e) {
       setError(e.response?.data?.detail || 'Action failed.')
+    }
+  }
+
+  async function handleResolve() {
+    if (!glpiTicketId) return
+    setResolving(true)
+    try {
+      await axios.post(`${API}/tickets/resolve`, {
+        ticket_id: ticket.Ticket_ID,
+        glpi_ticket_id: glpiTicketId,
+        resolution_note: resolveNote,
+      })
+      setResolved(true)
+      setShowResolvePanel(false)
+    } catch (e) {
+      setError('Failed to mark as resolved — check backend.')
+    } finally {
+      setResolving(false)
     }
   }
 
@@ -175,19 +200,91 @@ export default function Operations() {
 
       {/* Action result */}
       {actionDone && (
-        <div style={{
-          background: actionDone === 'approve' ? '#065f46' : '#450a0a',
-          border: `1px solid ${actionDone === 'approve' ? '#047857' : '#7f1d1d'}`,
-          borderRadius: 8, padding: '14px 20px', marginBottom: 20,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <span style={{ color: actionDone === 'approve' ? '#6ee7b7' : '#fca5a5', fontWeight: 600 }}>
-            {actionDone === 'approve' ? '✅ Ticket approved and escalated.' : '❌ Ticket rejected and closed.'}
-          </span>
-          <button onClick={() => navigate('/')} style={{
-            padding: '8px 18px', background: '#111827', color: '#60a5fa',
-            border: '1px solid #1e3a5f', borderRadius: 8, cursor: 'pointer', fontSize: 13,
-          }}>← Next Ticket</button>
+        <div style={{ marginBottom: 20 }}>
+          {/* Approval / rejection banner */}
+          <div style={{
+            background: actionDone === 'approve' ? '#065f46' : '#450a0a',
+            border: `1px solid ${actionDone === 'approve' ? '#047857' : '#7f1d1d'}`,
+            borderRadius: 8, padding: '14px 20px', marginBottom: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ color: actionDone === 'approve' ? '#6ee7b7' : '#fca5a5', fontWeight: 600 }}>
+              {actionDone === 'approve'
+                ? `✅ Ticket approved — GLPI #${glpiTicketId || '—'} created and set to In Progress.`
+                : '❌ Ticket rejected and closed.'}
+            </span>
+            <button onClick={() => navigate('/')} style={{
+              padding: '8px 18px', background: '#111827', color: '#60a5fa',
+              border: '1px solid #1e3a5f', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+            }}>← Next Ticket</button>
+          </div>
+
+          {/* Resolve section — only for approved tickets with a GLPI ID */}
+          {actionDone === 'approve' && glpiTicketId && !resolved && (
+            <>
+              {!showResolvePanel ? (
+                <button onClick={() => setShowResolvePanel(true)} style={{
+                  width: '100%', padding: '13px 0', background: '#1e3a5f', color: '#93c5fd',
+                  border: '1px solid #3b82f6', borderRadius: 8, cursor: 'pointer',
+                  fontWeight: 600, fontSize: 14,
+                }}>🔧 Mark as Resolved</button>
+              ) : (
+                <div style={{
+                  background: '#111827', border: '1px solid #1f2937',
+                  borderLeft: '4px solid #3b82f6', borderRadius: 10, padding: '20px 24px',
+                }}>
+                  <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                    Resolution Note — GLPI #{glpiTicketId}
+                  </div>
+                  <textarea
+                    value={resolveNote}
+                    onChange={e => setResolveNote(e.target.value)}
+                    placeholder="What did you do to fix it? (optional — e.g. Rebooted PE-Router-01, BGP neighbors restored)"
+                    rows={3}
+                    style={{
+                      width: '100%', background: '#0a0e1a', border: '1px solid #1f2937',
+                      borderRadius: 8, padding: '10px 14px', color: '#d1d5db', fontSize: 14,
+                      resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+                      outline: 'none', marginBottom: 12,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={handleResolve} disabled={resolving} style={{
+                      flex: 2, padding: '12px 0',
+                      background: resolving ? '#1f2937' : '#065f46',
+                      color: resolving ? '#4b5563' : '#6ee7b7',
+                      border: `1px solid ${resolving ? '#374151' : '#047857'}`,
+                      borderRadius: 8, cursor: resolving ? 'not-allowed' : 'pointer',
+                      fontWeight: 700, fontSize: 14, transition: 'all 0.2s',
+                    }}>{resolving ? 'Updating GLPI…' : '✅ Confirm Resolution'}</button>
+                    <button onClick={() => setShowResolvePanel(false)} style={{
+                      flex: 1, padding: '12px 0', background: 'none', color: '#4b5563',
+                      border: '1px solid #1f2937', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                    }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Resolved confirmation */}
+          {resolved && (
+            <div style={{
+              background: '#0f172a', border: '1px solid #166534',
+              borderLeft: '4px solid #22c55e', borderRadius: 8, padding: '14px 20px',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              <span style={{ fontSize: 22 }}>✅</span>
+              <div>
+                <div style={{ color: '#4ade80', fontWeight: 700, fontSize: 14 }}>
+                  Resolved — GLPI #{glpiTicketId} marked as Solved
+                </div>
+                {resolveNote && (
+                  <div style={{ color: '#6b7280', fontSize: 13, marginTop: 3 }}>{resolveNote}</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -377,11 +474,11 @@ export default function Operations() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => handleAction('approve')} style={{
+                <button onClick={() => handleAction('approve', true)} style={{
                   flex: 2, padding: '13px 0', background: '#1e3a5f', color: '#93c5fd',
                   border: '1px solid #3b82f6', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14,
                 }}>✉️ Send Notification</button>
-                <button onClick={() => { setSkipEmail(true); handleAction('approve') }} style={{
+                <button onClick={() => handleAction('approve', false)} style={{
                   flex: 1, padding: '13px 0', background: '#1f2937', color: '#6b7280',
                   border: '1px solid #374151', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
                 }}>Skip</button>

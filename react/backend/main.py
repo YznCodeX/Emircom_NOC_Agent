@@ -56,11 +56,32 @@ def save_processed(tickets):
 
 @app.get("/tickets")
 def get_tickets():
-    """Return all unprocessed tickets from the CSV."""
+    """Return pending tickets. Duplicates are included with a badge flag."""
     df = pd.read_csv(DATA_PATH)
-    processed_ids = {t["Ticket_ID"] for t in load_processed()}
-    pending = df[~df["Ticket_ID"].isin(processed_ids)]
-    return pending.to_dict(orient="records")
+    processed = load_processed()
+
+    # Latest status per ticket ID (last entry wins)
+    latest = {}
+    for t in processed:
+        latest[t["Ticket_ID"]] = t
+
+    result = []
+    for _, row in df.iterrows():
+        ticket = row.to_dict()
+        tid = ticket["Ticket_ID"]
+        proc = latest.get(tid)
+
+        if proc is None:
+            ticket["is_duplicate"] = False
+            ticket["duplicate_reason"] = ""
+            result.append(ticket)
+        elif proc.get("Status") == "Duplicate":
+            ticket["is_duplicate"] = True
+            ticket["duplicate_reason"] = proc.get("Duplicate_Reason", "")
+            result.append(ticket)
+        # Approved / Rejected / Resolved → excluded from queue
+
+    return result
 
 
 @app.get("/tickets/processed")
@@ -122,20 +143,152 @@ class ApproveRequest(BaseModel):
     action: str  # "approve" or "reject"
     confidence_score: int = 0
     sla_breached: bool = False
+    send_email: bool = True  # False when engineer clicks Skip
 
 
 @app.post("/tickets/approve")
 def approve_ticket(req: ApproveRequest):
-    """Approve or reject a ticket. If approved, creates a GLPI ticket."""
+    """Approve or reject a ticket. If approved, creates a rich GLPI ticket (or comments on original if duplicate)."""
     glpi_id = None
+
     if req.action == "approve":
         config = {"configurable": {"thread_id": req.ticket_id}}
+        agent_app.update_state(config, {"skip_email": not req.send_email})
         agent_app.invoke(None, config=config)
+        state = agent_app.get_state(config)
+        is_duplicate = state.values.get("is_duplicate", False)
+        approved_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if is_duplicate:
+            processed = load_processed()
+            # First: check audit log for original GLPI ticket
+            original = next(
+                (t for t in reversed(processed)
+                 if t["Ticket_ID"] == req.ticket_id and t.get("GLPI_Ticket")),
+                None
+            )
+            orig_glpi_id = original.get("GLPI_Ticket") if original else None
+
+            # Fallback: search GLPI directly for a ticket with this ticket_id in the name
+            if not orig_glpi_id:
+                try:
+                    session = glpi_session()
+                    headers = glpi_headers(session)
+                    r = http_requests.get(f"{GLPI_BASE}/Ticket", headers=headers,
+                                          params={"range": "0-100", "sort": "id", "order": "DESC"}, timeout=10)
+                    all_tickets = r.json() if isinstance(r.json(), list) else []
+                    http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
+                    match = next((t for t in all_tickets if req.ticket_id in t.get("name", "")), None)
+                    if match:
+                        orig_glpi_id = str(match["id"])
+                except Exception:
+                    pass
+
+            if orig_glpi_id:
+                # Post "fired again" comment on the original GLPI ticket
+                try:
+                    session = glpi_session()
+                    headers = glpi_headers(session)
+                    http_requests.post(f"{GLPI_BASE}/ITILFollowup", headers=headers, json={
+                        "input": {
+                            "items_id": int(orig_glpi_id),
+                            "itemtype": "Ticket",
+                            "content": (
+                                f"⚠️ Duplicate Alert Received\n"
+                                f"{'=' * 40}\n"
+                                f"Duplicate ticket: {req.ticket_id}\n"
+                                f"Received at: {approved_at} GST\n"
+                                f"Severity: {req.severity}\n\n"
+                                f"This alert fired again — the original issue may still be active.\n"
+                                f"Reviewed and acknowledged by NOC Engineer."
+                            ),
+                            "is_private": 0,
+                        }
+                    }, timeout=10)
+                    http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
+                    glpi_id = orig_glpi_id
+                except Exception:
+                    pass
+
+            dup_reason = state.values.get("duplicate_reason", "")
+            processed.append({
+                "Ticket_ID": req.ticket_id,
+                "Category": req.category,
+                "Severity": req.severity,
+                "Status": "Duplicate",
+                "GLPI_Ticket": orig_glpi_id,
+                "Duplicate_Reason": dup_reason,
+                "SLA_Breached": req.sla_breached,
+                "Confidence_Score": str(req.confidence_score) if req.confidence_score else "",
+            })
+            save_processed(processed)
+            return {"status": "ok", "glpi_ticket": glpi_id, "is_duplicate": True}
+
+        # ── Normal (non-duplicate) approval ──────────────────────────────────
+        analysis_raw = state.values.get("analysis", "{}")
+        try:
+            a = json.loads(analysis_raw.replace("```json", "").replace("```", "").strip())
+        except Exception:
+            a = {}
+
+        runbook    = state.values.get("runbook_match", "") or ""
+        supervisor = state.values.get("supervisor_reason", "") or ""
+        correlated = state.values.get("correlated_with", "") or ""
+        confidence = state.values.get("confidence_score", req.confidence_score)
+        affected   = a.get("Affected_Node", "Unknown")
+        team       = a.get("Routing_Team", req.category)
+
+        sep = "—" * 40
+        description = (
+            f"NOC AI Agent Analysis — Reviewed & Approved by Engineer\n{sep}\n"
+            f"Ticket ID:      {req.ticket_id}\n"
+            f"Severity:       {req.severity}\n"
+            f"Category:       {req.category}\n"
+            f"Affected Node:  {affected}\n"
+            f"Categorization: {a.get('Categorization', 'Unknown')}\n"
+            f"Assigned Team:  {team}\n"
+            f"AI Confidence:  {confidence}%\n"
+            f"SLA Breached:   {'Yes' if req.sla_breached else 'No'}\n"
+            f"Approved At:    {approved_at} GST\n\n"
+            f"SYMPTOM\n{sep}\n{a.get('Symptom_Description', 'N/A')}\n\n"
+            f"ROOT CAUSE\n{sep}\n{a.get('Root_Cause', 'N/A')}\n\n"
+            f"BUSINESS IMPACT\n{sep}\n{a.get('Business_Impact', 'N/A')}\n\n"
+            f"RECOMMENDED ACTION\n{sep}\n{a.get('Recommended_Action', 'N/A')}\n"
+        )
+        if supervisor:
+            description += f"\nSUPERVISOR ROUTING REASON\n{sep}\n{supervisor}\n"
+        if correlated:
+            description += f"\nCORRELATED WITH\n{sep}\n{correlated}\n"
+        if runbook:
+            description += f"\nMATCHED RUNBOOK\n{sep}\n{runbook[:600]}\n"
+
         glpi_id = _glpi_create_ticket(
-            f"[NOC] {req.category} - {req.ticket_id}",
-            f"Severity: {req.severity}\nApproved via NOC Agent.",
+            f"[NOC] {req.ticket_id} — {affected} | {req.severity} {req.category}",
+            description,
             req.severity
         )
+
+        if glpi_id:
+            try:
+                session = glpi_session()
+                headers = glpi_headers(session)
+                http_requests.post(f"{GLPI_BASE}/ITILFollowup", headers=headers, json={
+                    "input": {
+                        "items_id": int(glpi_id),
+                        "itemtype": "Ticket",
+                        "content": (
+                            f"✅ Ticket reviewed and approved by NOC Engineer\n"
+                            f"Approved at: {approved_at} GST\n"
+                            f"Confidence score: {confidence}%\n"
+                            f"SLA breached: {'Yes' if req.sla_breached else 'No'}\n"
+                            f"Status set to: In Progress"
+                        ),
+                        "is_private": 0,
+                    }
+                }, timeout=10)
+                http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
+            except Exception:
+                pass
 
     processed = load_processed()
     processed.append({
@@ -342,13 +495,16 @@ class GLPIActionRequest(BaseModel):
 
 
 @app.post("/glpi/action")
+@app.post("/glpi/review")  # alias used by Dashboard.jsx
 def glpi_action(req: GLPIActionRequest):
-    """Approve (Solved=5) or Reject (Closed=6) a GLPI ticket."""
+    """Approve (In Progress=2) or Reject (Closed=6) a GLPI ticket from the notification panel."""
     try:
         session = glpi_session()
         headers = glpi_headers(session)
 
-        new_status = 5 if req.action == "approve" else 6  # 5=Solved, 6=Closed
+        # Approve = In Progress (someone is working on it), not Solved
+        # Solved is set later via /tickets/resolve when the issue is actually fixed
+        new_status = 2 if req.action == "approve" else 6  # 2=In Progress, 6=Closed
         http_requests.put(f"{GLPI_BASE}/Ticket/{req.glpi_id}", headers=headers, json={
             "input": {"status": new_status}
         }, timeout=10)
@@ -356,6 +512,64 @@ def glpi_action(req: GLPIActionRequest):
         http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
         return {"status": "ok"}
     except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+class ResolveRequest(BaseModel):
+    ticket_id: str
+    glpi_ticket_id: str
+    resolution_note: str = ""
+
+
+@app.post("/tickets/resolve")
+def resolve_ticket(req: ResolveRequest):
+    """Mark a ticket as resolved — sets GLPI to Solved and posts resolution comment."""
+    try:
+        if not req.glpi_ticket_id or req.glpi_ticket_id in ("None", "null", ""):
+            return {"status": "error", "message": "No GLPI ticket ID — was GLPI running when ticket was approved?"}
+        glpi_id = int(req.glpi_ticket_id)
+        session = glpi_session()
+        headers = glpi_headers(session)
+
+        # Update GLPI status to Solved (5)
+        http_requests.put(f"{GLPI_BASE}/Ticket/{glpi_id}", headers=headers, json={
+            "input": {"status": 5}
+        }, timeout=10)
+
+        # Post resolution comment
+        note = req.resolution_note.strip() or "Issue resolved by NOC engineer."
+        comment = (
+            f"Resolution Note\n{'=' * 40}\n"
+            f"Status: RESOLVED\n"
+            f"Resolved at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} GST\n\n"
+            f"Engineer Note:\n{note}\n\n"
+            f"— Closed via Emircom NOC Dashboard"
+        )
+        http_requests.post(f"{GLPI_BASE}/ITILFollowup", headers=headers, json={
+            "input": {
+                "items_id": glpi_id,
+                "itemtype": "Ticket",
+                "content": comment,
+                "is_private": 0,
+            }
+        }, timeout=10)
+
+        http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
+
+        # Update local audit log
+        processed = load_processed()
+        for t in processed:
+            if t["Ticket_ID"] == req.ticket_id:
+                t["Status"] = "Resolved"
+                t["Resolution_Note"] = note
+                t["Resolved_At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        save_processed(processed)
+
+        print(f"  ✅ Resolved: {req.ticket_id} → GLPI #{glpi_id} | Note: {note[:60]}")
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"  ⚠️ Resolve failed: {e}")
         return {"status": "error", "message": str(e)}
 
 
