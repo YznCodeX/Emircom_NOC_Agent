@@ -185,6 +185,12 @@ def approve_ticket(req: ApproveRequest):
                     pass
 
             if orig_glpi_id:
+                print(f"\n{'─'*60}")
+                print(f"  🔁  DUPLICATE APPROVED    {req.ticket_id}")
+                print(f"  📋  Original GLPI Ticket  #{orig_glpi_id}")
+                print(f"  ⚠️   Severity              {req.severity}")
+                print(f"  🕒  Time                  {approved_at} GST")
+                print(f"{'─'*60}")
                 # Post "fired again" comment on the original GLPI ticket
                 try:
                     session = glpi_session()
@@ -269,6 +275,21 @@ def approve_ticket(req: ApproveRequest):
         )
 
         if glpi_id:
+            print(f"\n{'═'*60}")
+            print(f"  ✅  TICKET APPROVED")
+            print(f"  📋  NOC Ticket ID   {req.ticket_id}")
+            print(f"  🎫  GLPI Ticket     #{glpi_id}")
+            print(f"  🔴  Severity        {req.severity}")
+            print(f"  📁  Category        {req.category}")
+            print(f"  🖥️   Affected Node   {affected}")
+            print(f"  🤖  AI Confidence   {confidence}%")
+            print(f"  ⏱️   SLA Breached    {'Yes' if req.sla_breached else 'No'}")
+            print(f"  🕒  Approved At     {approved_at} GST")
+            print(f"{'═'*60}\n")
+        else:
+            print(f"\n  ⚠️  GLPI ticket creation failed for {req.ticket_id} — is GLPI running?\n")
+
+        if glpi_id:
             try:
                 session = glpi_session()
                 headers = glpi_headers(session)
@@ -289,6 +310,9 @@ def approve_ticket(req: ApproveRequest):
                 http_requests.get(f"{GLPI_BASE}/killSession", headers=headers, timeout=5)
             except Exception:
                 pass
+
+    if req.action == "reject":
+        print(f"\n  ❌  TICKET REJECTED    {req.ticket_id}  |  {req.severity}  |  {req.category}\n")
 
     processed = load_processed()
     processed.append({
@@ -323,7 +347,7 @@ class NotifyRequest(BaseModel):
 def notify_ticket(req: NotifyRequest):
     """Send the NOC alert email for an already-approved ticket."""
     try:
-        from src.email_sender import send_alert_email
+        from src.email_sender import send_alert_email, TEAM_ROUTING, GMAIL_USER
         sent = send_alert_email(
             ticket_id=req.ticket_id,
             glpi_ticket_id=req.glpi_ticket_id,
@@ -337,8 +361,18 @@ def notify_ticket(req: NotifyRequest):
             confidence_score=req.confidence_score,
             correlated_with=req.correlated_with,
         )
-        return {"status": "ok" if sent else "skipped"}
+        to_email = TEAM_ROUTING.get(req.category, {}).get("email", GMAIL_USER)
+        if sent:
+            print(f"\n  📧  EMAIL SENT")
+            print(f"  📋  Ticket     {req.ticket_id}  |  GLPI #{req.glpi_ticket_id}")
+            print(f"  📨  From       {GMAIL_USER}")
+            print(f"  📬  To         {to_email}")
+            print(f"  🔴  Severity   {req.severity}  |  {req.category}\n")
+        else:
+            print(f"\n  ⚠️  EMAIL FAILED for {req.ticket_id} — check GMAIL_APP_PASSWORD in .env\n")
+        return {"status": "ok" if sent else "failed"}
     except Exception as e:
+        print(f"\n  ❌  EMAIL ERROR for {req.ticket_id}: {e}\n")
         return {"status": "error", "message": str(e)}
 
 
