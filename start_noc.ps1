@@ -58,7 +58,7 @@ Write-OK "GLPI containers started  →  http://localhost  (login: glpi / glpi)"
 
 # ── 3. FastAPI Backend ───────────────────────────────────────────────────────
 Write-Step "Starting FastAPI backend on port 8001..."
-$backendCmd = "Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python -m uvicorn react.backend.main:app --port 8001; Read-Host 'Press Enter to close'"
+$backendCmd = "Set-Location '$ROOT'; .\venv\Scripts\Activate.ps1; python -m uvicorn react.backend.main:app --port 8001 --reload; Read-Host 'Press Enter to close'"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd -WindowStyle Normal
 Start-Sleep 3
 Write-OK "Backend started  →  http://localhost:8001"

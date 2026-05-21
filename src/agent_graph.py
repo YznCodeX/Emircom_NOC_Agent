@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+import hashlib
 import requests
 from dotenv import load_dotenv
 from typing import TypedDict
@@ -68,18 +69,36 @@ def _init_dedup_db(conn):
     """Create the dedup table if it doesn't exist."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS dedup_alerts (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticket_id   TEXT NOT NULL,
-            description TEXT NOT NULL,
-            seen_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id        TEXT NOT NULL,
+            description      TEXT NOT NULL,
+            description_hash TEXT,
+            seen_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Add the column to existing DBs that were created before this change
+    try:
+        conn.execute("ALTER TABLE dedup_alerts ADD COLUMN description_hash TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
+
+def _desc_hash(description: str) -> str:
+    """MD5 fingerprint of a normalised description — same text always gives same hash."""
+    return hashlib.md5(description.strip().lower().encode()).hexdigest()
+
+def _dedup_hash_seen(conn, desc_hash: str) -> bool:
+    """Return True if we've seen this exact description before (within 6 hours)."""
+    row = conn.execute(
+        "SELECT 1 FROM dedup_alerts WHERE description_hash = ? AND seen_at >= datetime('now', '-6 hours') LIMIT 1",
+        (desc_hash,)
+    ).fetchone()
+    return row is not None
 
 def _dedup_add(conn, ticket_id: str, description: str):
     conn.execute(
-        "INSERT INTO dedup_alerts (ticket_id, description) VALUES (?, ?)",
-        (ticket_id, description)
+        "INSERT INTO dedup_alerts (ticket_id, description, description_hash) VALUES (?, ?, ?)",
+        (ticket_id, description, _desc_hash(description))
     )
     conn.commit()
 
@@ -131,6 +150,12 @@ def deduplication_node(state: AgentState):
     # Exact ticket_id match — already processed this ticket
     if _dedup_ticket_seen(_conn, state['ticket_id']):
         return {"is_duplicate": True, "duplicate_reason": f"Ticket {state['ticket_id']} already processed in this or a previous session"}
+
+    # Hash fast path — same description text seen in the last 6 hours, no LLM call needed
+    h = _desc_hash(state['description'])
+    if _dedup_hash_seen(_conn, h):
+        print(f"[{state['ticket_id']}] ⚡ Hash match — instant duplicate (no LLM call)")
+        return {"is_duplicate": True, "duplicate_reason": "Exact duplicate description seen within the last 6 hours (alert storm suppressed)"}
 
     recent = _dedup_get_recent(_conn, limit=10)
 

@@ -334,6 +334,15 @@ def run():
             load_sla_ids(hdrs)
             requests.get(f"{GLPI_BASE}/killSession", headers=hdrs, timeout=5)
             print(f"  Groups ready: {GROUP_IDS}")
+            # SLA check — warn clearly if any SLA name doesn't match GLPI
+            missing_slas = [name for sev, name in SLA_NAME_MAP.items() if sev not in SLA_IDS]
+            if missing_slas:
+                print(f"  ⚠️  SLA MISMATCH — these SLA names were not found in GLPI:")
+                for name in missing_slas:
+                    print(f"      '{name}'")
+                print(f"  ⚠️  Go to GLPI → Setup → SLA and make sure those names exist exactly.")
+            else:
+                print(f"  ✅ All 4 SLAs matched: {SLA_IDS}")
     except Exception as e:
         print(f"  ⚠️ Setup skipped: {e}")
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -42,6 +43,27 @@ export default function Analytics() {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ category: 'All', severity: 'All', status: 'All' })
+  const [resolvingId, setResolvingId] = useState(null)
+  const [resolvedIds, setResolvedIds] = useState(new Set())
+
+  async function handleResolve(ticket) {
+    setResolvingId(ticket.Ticket_ID)
+    try {
+      await axios.post(`${API}/tickets/resolve`, {
+        ticket_id: ticket.Ticket_ID,
+        glpi_ticket_id: String(ticket.GLPI_Ticket),
+        resolution_note: 'Resolved via Analytics audit log.',
+      })
+      setResolvedIds(prev => new Set([...prev, ticket.Ticket_ID]))
+      setTickets(prev => prev.map(t =>
+        t.Ticket_ID === ticket.Ticket_ID ? { ...t, Status: 'Resolved' } : t
+      ))
+    } catch {
+      alert('Resolve failed — check backend.')
+    } finally {
+      setResolvingId(null)
+    }
+  }
 
   useEffect(() => {
     fetch(`${API}/tickets/processed`)
@@ -270,7 +292,7 @@ export default function Analytics() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#1f2937' }}>
-                {['Ticket ID', 'Category', 'Severity', 'Status', 'Confidence', 'SLA Breached', 'Response Time'].map(h => (
+                {['Ticket ID', 'GLPI #', 'Category', 'Severity', 'Status', 'Confidence', 'SLA Breached', 'Action'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: '#9ca3af', fontWeight: 600, borderBottom: '1px solid #374151', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
@@ -286,10 +308,15 @@ export default function Analytics() {
                 </tr>
               ) : filtered.map((t, i) => {
                 const sevColor = { Critical: '#ef4444', High: '#f59e0b', Medium: '#6366f1', Low: '#10b981' }[t.Severity] || '#6b7280'
-                const stColor = t.Status === 'Approved' ? '#10b981' : '#ef4444'
+                const stColor = t.Status === 'Resolved' ? '#22d3ee' : t.Status === 'Approved' ? '#10b981' : t.Status === 'Duplicate' ? '#f59e0b' : '#ef4444'
+                const canResolve = t.Status === 'Approved' && t.GLPI_Ticket && !resolvedIds.has(t.Ticket_ID)
+                const isResolving = resolvingId === t.Ticket_ID
                 return (
                   <tr key={t.Ticket_ID || i} style={{ borderBottom: '1px solid #1f2937' }}>
                     <td style={{ padding: '9px 14px', color: '#e5e7eb', fontFamily: 'monospace' }}>{t.Ticket_ID || '—'}</td>
+                    <td style={{ padding: '9px 14px', color: '#6b7280', fontFamily: 'monospace', fontSize: 12 }}>
+                      {t.GLPI_Ticket ? `#${t.GLPI_Ticket}` : '—'}
+                    </td>
                     <td style={{ padding: '9px 14px', color: '#d1d5db' }}>{t.Category || '—'}</td>
                     <td style={{ padding: '9px 14px' }}>
                       <span style={{ background: `${sevColor}22`, color: sevColor, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
@@ -309,8 +336,23 @@ export default function Analytics() {
                         {t.SLA_Breached ? '⚠ Yes' : '✓ No'}
                       </span>
                     </td>
-                    <td style={{ padding: '9px 14px', color: '#9ca3af' }}>
-                      {t.Response_Time_Secs != null ? `${t.Response_Time_Secs}s` : '—'}
+                    <td style={{ padding: '9px 14px' }}>
+                      {canResolve ? (
+                        <button
+                          onClick={() => handleResolve(t)}
+                          disabled={isResolving}
+                          style={{
+                            padding: '4px 12px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
+                            background: isResolving ? '#1f2937' : '#0c4a6e',
+                            color: isResolving ? '#4b5563' : '#38bdf8',
+                            border: '1px solid #0ea5e9',
+                          }}
+                        >
+                          {isResolving ? '...' : '✓ Resolve'}
+                        </button>
+                      ) : (
+                        <span style={{ color: '#374151', fontSize: 12 }}>—</span>
+                      )}
                     </td>
                   </tr>
                 )
